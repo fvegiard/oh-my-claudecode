@@ -8,7 +8,7 @@
  */
 
 import { exec, execFile, execSync, execFileSync } from 'child_process';
-import { join, basename } from 'path';
+import { join, basename, isAbsolute, win32 } from 'path';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import { validateTeamName } from './team-name.js';
@@ -84,10 +84,25 @@ function assertSafeEnvKey(key: string): void {
   }
 }
 
-function assertSafeLaunchBinary(binary: string): void {
-  if (/^[A-Za-z0-9._/-]+$/.test(binary)) return;
-  if (/^[A-Za-z]:[\\/][A-Za-z0-9._\\/-]+$/.test(binary)) return;
-  throw new Error(`Invalid launchBinary: "${binary}"`);
+const DANGEROUS_LAUNCH_BINARY_CHARS = /[;&|`$()<>\n\r\t\0]/;
+
+function isAbsoluteLaunchBinaryPath(value: string): boolean {
+  return isAbsolute(value) || win32.isAbsolute(value);
+}
+
+function assertSafeLaunchBinary(launchBinary: string): void {
+  if (launchBinary.trim().length === 0) {
+    throw new Error('Invalid launchBinary: value cannot be empty');
+  }
+  if (launchBinary !== launchBinary.trim()) {
+    throw new Error('Invalid launchBinary: value cannot have leading/trailing whitespace');
+  }
+  if (DANGEROUS_LAUNCH_BINARY_CHARS.test(launchBinary)) {
+    throw new Error('Invalid launchBinary: contains dangerous shell metacharacters');
+  }
+  if (/\s/.test(launchBinary) && !isAbsoluteLaunchBinaryPath(launchBinary)) {
+    throw new Error('Invalid launchBinary: paths with spaces must be absolute');
+  }
 }
 
 function getLaunchWords(config: WorkerPaneConfig): string[] {
