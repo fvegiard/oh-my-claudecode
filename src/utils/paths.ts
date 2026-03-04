@@ -210,7 +210,7 @@ export function purgeStalePluginCacheVersions(): PurgeCacheResult {
 
         // Check if this version or any of its subdirectories are referenced
         const isActive = activePaths.has(normalised) ||
-          [...activePaths].some(ap => ap.startsWith(normalised + '/'));
+          Array.from(activePaths).some(ap => ap.startsWith(normalised + '/'));
 
         if (isActive) continue;
 
