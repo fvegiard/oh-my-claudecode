@@ -12,7 +12,7 @@ export interface CliAgentContract {
   parseOutput(rawOutput: string): string;
   /** Whether this agent supports a prompt/headless mode that bypasses TUI input */
   supportsPromptMode?: boolean;
-  /** CLI flag for prompt mode (e.g., '-p' for gemini) */
+  /** CLI flag for prompt mode (e.g., '-i' for gemini) */
   promptModeFlag?: string;
 }
 
@@ -198,7 +198,7 @@ const CONTRACTS: Record<CliAgentType, CliAgentContract> = {
     binary: 'gemini',
     installInstructions: 'Install Gemini CLI: npm install -g @google/gemini-cli',
     supportsPromptMode: true,
-    promptModeFlag: '-p',
+    promptModeFlag: '-i',
     buildLaunchArgs(model?: string, extraFlags: string[] = []): string[] {
       const args = ['--approval-mode', 'yolo'];
       if (model) args.push('--model', model);
@@ -330,7 +330,7 @@ export function getPromptModeArgs(agentType: CliAgentType, instruction: string):
   if (!contract.supportsPromptMode) {
     return [];
   }
-  // If a flag is defined (e.g. gemini's '-p'), prepend it; otherwise the
+  // If a flag is defined (e.g. gemini's '-i'), prepend it; otherwise the
   // instruction is passed as a positional argument (e.g. codex [PROMPT]).
   if (contract.promptModeFlag) {
     return [contract.promptModeFlag, instruction];

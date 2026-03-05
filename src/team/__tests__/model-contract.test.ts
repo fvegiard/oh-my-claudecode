@@ -216,7 +216,7 @@ describe('model-contract', () => {
       expect(isPromptModeAgent('gemini')).toBe(true);
       const c = getContract('gemini');
       expect(c.supportsPromptMode).toBe(true);
-      expect(c.promptModeFlag).toBe('-p');
+      expect(c.promptModeFlag).toBe('-i');
     });
 
     it('claude does not support prompt mode', () => {
@@ -232,7 +232,7 @@ describe('model-contract', () => {
 
     it('getPromptModeArgs returns flag + instruction for gemini', () => {
       const args = getPromptModeArgs('gemini', 'Read inbox');
-      expect(args).toEqual(['-p', 'Read inbox']);
+      expect(args).toEqual(['-i', 'Read inbox']);
     });
 
     it('getPromptModeArgs returns instruction only (positional) for codex', () => {
