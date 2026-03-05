@@ -258,18 +258,7 @@ function resolveConflicts(matches) {
   let resolved = [...matches];
 
 
-  // Team beats autopilot (legacy ultrapilot semantics)
-  if (names.includes('team') && names.includes('autopilot')) {
-    resolved = resolved.filter(m => m.name !== 'autopilot');
-  }
-
-  // Team beats ultrapilot (team is the canonical implementation)
-  if (names.includes('team') && names.includes('ultrapilot')) {
-    resolved = resolved.filter(m => m.name !== 'ultrapilot');
-  }
-
-  // Ralph + Team coexist (team-ralph linked mode)
-  // Both keywords are preserved so the skill can detect the composition.
+  // Team keyword detection removed — team is now explicit-only via /team skill.
 
   // Sort by priority order
   const priorityOrder = ['cancel','ralph','autopilot','team','ultrawork',
@@ -299,6 +288,13 @@ async function main() {
   const _skipHooks = (process.env.OMC_SKIP_HOOKS || '').split(',').map(s => s.trim());
   if (process.env.DISABLE_OMC === '1' || _skipHooks.includes('keyword-detector')) {
     console.log(JSON.stringify({ continue: true }));
+    return;
+  }
+
+  // Team worker guard: prevent keyword detection inside team workers to avoid
+  // infinite spawning loops (worker detects "team" -> invokes team skill -> spawns more workers)
+  if (process.env.OMC_TEAM_WORKER) {
+    console.log(JSON.stringify({ continue: true, suppressOutput: true }));
     return;
   }
 
@@ -346,14 +342,7 @@ async function main() {
       matches.push({ name: 'autopilot', args: '' });
     }
 
-    // Ultrapilot keywords (legacy names, routes to team via compatibility facade)
-    if (/\b(ultrapilot|ultra-pilot)\b/i.test(cleanPrompt) ||
-        /\bparallel\s+build\b/i.test(cleanPrompt) ||
-        /\bswarm\s+build\b/i.test(cleanPrompt) ||
-        /\bswarm\s+\d+\s+agents?\b/i.test(cleanPrompt) ||
-        /\bcoordinated\s+agents\b/i.test(cleanPrompt)) {
-      matches.push({ name: 'ultrapilot', args: '' });
-    }
+    // Ultrapilot keywords removed — routed to team which is now explicit-only (/team).
 
     // Ultrawork keywords
     if (/\b(ultrawork|ulw|uw)\b/i.test(cleanPrompt)) {
@@ -361,13 +350,8 @@ async function main() {
     }
 
 
-    // Team keywords (intent-gated to prevent false positives on bare "team")
-    // Uses negative lookbehind to exclude possessive/article contexts like "my team", "the team"
-    const hasTeamKeyword = /(?<!\b(?:my|the|our|a|his|her|their|its)\s)\bteam\b/i.test(cleanPrompt) ||
-      /\bcoordinated\s+team\b/i.test(cleanPrompt);
-    if (hasTeamKeyword && isTeamEnabled()) {
-      matches.push({ name: 'team', args: '' });
-    }
+    // Team keyword detection removed — team mode is now explicit-only via /team skill.
+    // This prevents infinite spawning when Claude workers receive prompts containing "team".
 
     // Pipeline keywords
     if (/\b(pipeline)\b/i.test(cleanPrompt) || /\bchain\s+agents\b/i.test(cleanPrompt)) {
@@ -447,13 +431,13 @@ async function main() {
 
     // Handle cancel specially - clear states and emit
     if (resolved.length > 0 && resolved[0].name === 'cancel') {
-      clearStateFiles(directory, ['ralph', 'autopilot', 'team', 'ultrawork', 'swarm', 'pipeline'], sessionId);
+      clearStateFiles(directory, ['ralph', 'autopilot', 'ultrawork', 'swarm', 'pipeline'], sessionId);
       console.log(JSON.stringify(createHookOutput(createSkillInvocation('cancel', prompt))));
       return;
     }
 
-    // Activate states for modes that need them
-    const stateModes = resolved.filter(m => ['ralph', 'autopilot', 'team', 'ultrawork'].includes(m.name));
+    // Activate states for modes that need them (team removed — explicit-only via /team skill)
+    const stateModes = resolved.filter(m => ['ralph', 'autopilot', 'ultrawork'].includes(m.name));
     for (const mode of stateModes) {
       activateState(directory, prompt, mode.name, sessionId);
     }
@@ -468,14 +452,8 @@ async function main() {
     // Special: Ralph with ultrawork
     const hasRalph = resolved.some(m => m.name === 'ralph');
     const hasUltrawork = resolved.some(m => m.name === 'ultrawork');
-    const hasTeam = resolved.some(m => m.name === 'team');
     if (hasRalph && !hasUltrawork) {
       activateState(directory, prompt, 'ultrawork', sessionId);
-    }
-
-    // Link ralph + team if both detected (team-ralph composition)
-    if (hasRalph && hasTeam) {
-      linkRalphTeam(directory, sessionId);
     }
 
     // Handle ultrathink specially - prepend message instead of skill invocation
