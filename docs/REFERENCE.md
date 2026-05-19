@@ -689,8 +689,6 @@ OMC registers 20 hook scripts across 11 Claude Code lifecycle events. For detail
 
 ### Code Simplifier Hook
 
-### Code Simplifier Hook
-
 The `code-simplifier` Stop hook automatically delegates recently modified source files to the
 `code-simplifier` agent after each Claude turn. It is **disabled by default** and must be
 explicitly enabled via the global OMC config file:
