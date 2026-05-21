@@ -117,6 +117,16 @@ export function ensureStateDir(location: StateLocation): void {
   }
 }
 
+function resolveLegacyStatePath(legacyPath: string): string {
+  return path.isAbsolute(legacyPath)
+    ? legacyPath
+    : path.join(getWorktreeRoot() || process.cwd(), legacyPath);
+}
+
+function warnStateReadFailure(kind: "state" | "legacy state", filePath: string, error: unknown): void {
+  console.warn(`Failed to read ${kind} from ${filePath}:`, error);
+}
+
 /**
  * Read state from file
  *
@@ -188,17 +198,14 @@ export function readState<T = StateData>(
       };
     } catch (error) {
       // Invalid JSON or read error - treat as not found
-      console.warn(`Failed to read state from ${standardPath}:`, error);
+      warnStateReadFailure("state", standardPath, error);
     }
   }
 
   // Try legacy locations
   if (checkLegacy) {
     for (const legacyPath of legacyPaths) {
-      // Resolve relative paths
-      const resolvedPath = path.isAbsolute(legacyPath)
-        ? legacyPath
-        : path.join(getWorktreeRoot() || process.cwd(), legacyPath);
+      const resolvedPath = resolveLegacyStatePath(legacyPath);
 
       if (fs.existsSync(resolvedPath)) {
         try {
@@ -211,10 +218,7 @@ export function readState<T = StateData>(
             legacyLocations: legacyPaths,
           };
         } catch (error) {
-          console.warn(
-            `Failed to read legacy state from ${resolvedPath}:`,
-            error,
-          );
+          warnStateReadFailure("legacy state", resolvedPath, error);
         }
       }
     }
@@ -315,9 +319,7 @@ export function clearState(
   // Remove from legacy locations
   const legacyPaths = getLegacyPaths(name, location ?? StateLocation.LOCAL);
   for (const legacyPath of legacyPaths) {
-    const resolvedPath = path.isAbsolute(legacyPath)
-      ? legacyPath
-      : path.join(getWorktreeRoot() || process.cwd(), legacyPath);
+    const resolvedPath = resolveLegacyStatePath(legacyPath);
 
     try {
       if (fs.existsSync(resolvedPath)) {

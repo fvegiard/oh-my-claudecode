@@ -4,6 +4,11 @@
  * Resolves which provider/tool to use for a given agent role.
  */
 import { isDelegationEnabled, ROLE_CATEGORY_DEFAULTS, normalizeDelegationRole, } from './types.js';
+const DEPRECATED_MCP_PROVIDERS = new Set([
+    'codex',
+    'gemini',
+]);
+const DEPRECATED_MCP_PROVIDER_WARNING = '[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.';
 /**
  * Resolve delegation decision based on configuration and context
  *
@@ -47,11 +52,13 @@ function resolveExplicitTool(tool, model, agentRole) {
 function resolveFromConfig(agentRole, route) {
     const provider = route.provider;
     let tool = route.tool;
-    // Warn and fall back to claude for deprecated codex/gemini providers
-    if (provider === 'codex' || provider === 'gemini') {
-        console.warn('[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.');
-        const agentOrModel = route.model || route.agentType || agentRole;
-        const fallbackChain = route.fallback;
+    const agentOrModel = route.model || route.agentType || agentRole;
+    const fallbackChain = route.fallback;
+    // Deprecated MCP providers are a compatibility input only. Preserve their
+    // configured model/agent and fallback-chain evidence while routing to Claude
+    // Task so callers can see compatibility normalization happened.
+    if (isDeprecatedMcpProvider(provider)) {
+        console.warn(DEPRECATED_MCP_PROVIDER_WARNING);
         return {
             provider: 'claude',
             tool: 'Task',
@@ -65,8 +72,6 @@ function resolveFromConfig(agentRole, route) {
         console.warn(`[delegation-routing] Provider/tool mismatch: ${provider} with ${tool}. Correcting to Task.`);
         tool = 'Task';
     }
-    const agentOrModel = route.model || route.agentType || agentRole;
-    const fallbackChain = route.fallback;
     return {
         provider,
         tool,
@@ -91,8 +96,8 @@ function resolveDefault(agentRole, config) {
     }
     // Fall back to default provider or claude
     const defaultProvider = config?.defaultProvider || 'claude';
-    if (defaultProvider === 'codex' || defaultProvider === 'gemini') {
-        console.warn('[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.');
+    if (isDeprecatedMcpProvider(defaultProvider)) {
+        console.warn(DEPRECATED_MCP_PROVIDER_WARNING);
     }
     // Default to claude Task (codex/gemini default providers fall back to claude)
     return {
@@ -101,6 +106,9 @@ function resolveDefault(agentRole, config) {
         agentOrModel: agentRole,
         reason: `Fallback to Claude Task for role "${agentRole}"`,
     };
+}
+function isDeprecatedMcpProvider(provider) {
+    return provider ? DEPRECATED_MCP_PROVIDERS.has(provider) : false;
 }
 /**
  * Parse fallback chain format ["claude:explore", "codex:gpt-5"]
