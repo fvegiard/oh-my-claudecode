@@ -1722,6 +1722,15 @@ function normalizeDelegationRole(role) {
   return DEPRECATED_ROLE_ALIASES[role] ?? role;
 }
 
+// src/features/delegation-routing/resolver.ts
+var DEPRECATED_MCP_PROVIDERS = /* @__PURE__ */ new Set([
+  "codex",
+  "gemini"
+]);
+function isDeprecatedMcpProvider(provider) {
+  return provider ? DEPRECATED_MCP_PROVIDERS.has(provider) : false;
+}
+
 // src/config/loader.ts
 function buildDefaultConfig() {
   const defaultTierModels = getDefaultTierModels();
@@ -2054,13 +2063,13 @@ function loadEnvConfig() {
 function warnOnDeprecatedDelegationRouting(config) {
   const deprecatedProviders = /* @__PURE__ */ new Set();
   const defaultProvider = config.delegationRouting?.defaultProvider;
-  if (defaultProvider === "codex" || defaultProvider === "gemini") {
+  if (isDeprecatedMcpProvider(defaultProvider)) {
     deprecatedProviders.add(defaultProvider);
   }
   const roles = config.delegationRouting?.roles ?? {};
   for (const route of Object.values(roles)) {
     const provider = route?.provider;
-    if (provider === "codex" || provider === "gemini") {
+    if (isDeprecatedMcpProvider(provider)) {
       deprecatedProviders.add(provider);
     }
   }

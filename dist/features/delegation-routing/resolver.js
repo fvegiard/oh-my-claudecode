@@ -8,7 +8,7 @@ const DEPRECATED_MCP_PROVIDERS = new Set([
     'codex',
     'gemini',
 ]);
-const DEPRECATED_MCP_PROVIDER_WARNING = '[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.';
+export const DEPRECATED_MCP_PROVIDER_WARNING = '[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.';
 /**
  * Resolve delegation decision based on configuration and context
  *
@@ -110,7 +110,7 @@ function resolveDefault(agentRole, config) {
         reason: `Fallback to Claude Task for role "${agentRole}"`,
     };
 }
-function isDeprecatedMcpProvider(provider) {
+export function isDeprecatedMcpProvider(provider) {
     return provider ? DEPRECATED_MCP_PROVIDERS.has(provider) : false;
 }
 /**

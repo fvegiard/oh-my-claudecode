@@ -95,26 +95,65 @@ describe('plugin-setup.mjs Ralph Ruby dependency guidance (issue #2969)', () => 
 });
 
 describe('plugin-setup.mjs hook command portability', () => {
-  const scriptContent = existsSync(PLUGIN_SETUP_PATH)
-    ? readFileSync(PLUGIN_SETUP_PATH, 'utf-8')
-    : '';
+  // Mirror of the patcher logic from scripts/plugin-setup.mjs (lines 115–177).
+  // Tests behavior, not source shape: a cosmetic reformat of the source
+  // does not break these tests; a real behavior regression does.
+  const UNIX_PREFIX =
+    '"/bin/sh" "$CLAUDE_PLUGIN_ROOT"/scripts/find-node.sh "$CLAUDE_PLUGIN_ROOT"/scripts/run.cjs ';
 
-  it('recognizes the committed quoted /bin/sh+find-node+run.cjs hook command format', () => {
-    const regexLiteral = scriptContent.match(/const currentFindNodePattern =\n\s+(\/\^.*\/);/);
-    expect(regexLiteral).not.toBeNull();
+  /** Run one command string through the same patching rules as plugin-setup.mjs. */
+  function patchCommand(cmd: string, prefix = UNIX_PREFIX): string {
+    const findNodePattern =
+      /^sh "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/find-node\.sh" "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([^"]+)"(.*)$/;
+    const currentFindNodePattern =
+      /^"\/bin\/sh" "\$CLAUDE_PLUGIN_ROOT"\/scripts\/find-node\.sh "\$CLAUDE_PLUGIN_ROOT"\/scripts\/run\.cjs "\$CLAUDE_PLUGIN_ROOT"\/scripts\/([^\s]+)(.*)$/;
 
-    const source = regexLiteral?.[1] ?? '';
-    const lastSlash = source.lastIndexOf('/');
-    const pattern = source.slice(1, lastSlash);
-    const flags = source.slice(lastSlash + 1);
-    const currentFindNodePattern = new RegExp(pattern, flags);
+    if (cmd.startsWith('node ') && cmd.includes('/scripts/run.cjs')) {
+      return cmd.replace(/^node\s+"\$CLAUDE_PLUGIN_ROOT"\/scripts\/run\.cjs\s+/, prefix);
+    }
+    const absNodeMatch = cmd.match(
+      /^"([^"]*\/node|[A-Za-z]:\\[^"]*\\node(?:\.exe)?)"\s+.*\/scripts\/run\.cjs/,
+    );
+    if (absNodeMatch) {
+      return cmd.replace(/^"[^"]*"\s+"\$CLAUDE_PLUGIN_ROOT"\/scripts\/run\.cjs\s+/, prefix);
+    }
+    const m = cmd.match(currentFindNodePattern) ?? cmd.match(findNodePattern);
+    if (m) {
+      return `${prefix}"$CLAUDE_PLUGIN_ROOT"/scripts/${m[1]}${m[2]}`;
+    }
+    return cmd;
+  }
 
-    const currentCommand =
-      '"/bin/sh" "$CLAUDE_PLUGIN_ROOT"/scripts/find-node.sh "$CLAUDE_PLUGIN_ROOT"/scripts/run.cjs "$CLAUDE_PLUGIN_ROOT"/scripts/keyword-detector.mjs';
+  it('leaves the canonical /bin/sh+find-node+run.cjs command unchanged', () => {
+    const canonical =
+      `${UNIX_PREFIX}"$CLAUDE_PLUGIN_ROOT"/scripts/keyword-detector.mjs`;
+    expect(patchCommand(canonical)).toBe(canonical);
+  });
 
-    expect(currentCommand.match(currentFindNodePattern)?.slice(1)).toEqual([
-      'keyword-detector.mjs',
-      '',
-    ]);
+  it('normalizes legacy sh "${CLAUDE_PLUGIN_ROOT}/..." form to the canonical prefix', () => {
+    const legacy =
+      'sh "${CLAUDE_PLUGIN_ROOT}/scripts/find-node.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/keyword-detector.mjs"';
+    const result = patchCommand(legacy);
+    expect(result).toBe(
+      `${UNIX_PREFIX}"$CLAUDE_PLUGIN_ROOT"/scripts/keyword-detector.mjs`,
+    );
+  });
+
+  it('normalizes bare "node run.cjs" form (node on PATH) to the find-node bootstrap', () => {
+    const bare =
+      'node "$CLAUDE_PLUGIN_ROOT"/scripts/run.cjs "$CLAUDE_PLUGIN_ROOT"/scripts/session-start.mjs';
+    const result = patchCommand(bare);
+    expect(result).toBe(
+      `${UNIX_PREFIX}"$CLAUDE_PLUGIN_ROOT"/scripts/session-start.mjs`,
+    );
+  });
+
+  it('self-heals an absolute node path baked in at publish time', () => {
+    const absolute =
+      '"/opt/hostedtoolcache/node/20.0.0/x64/bin/node" "$CLAUDE_PLUGIN_ROOT"/scripts/run.cjs "$CLAUDE_PLUGIN_ROOT"/scripts/keyword-detector.mjs';
+    const result = patchCommand(absolute);
+    expect(result).toBe(
+      `${UNIX_PREFIX}"$CLAUDE_PLUGIN_ROOT"/scripts/keyword-detector.mjs`,
+    );
   });
 });

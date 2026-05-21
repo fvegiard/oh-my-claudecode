@@ -3234,6 +3234,31 @@ var init_types2 = __esm({
   }
 });
 
+// src/features/delegation-routing/resolver.ts
+function isDeprecatedMcpProvider(provider) {
+  return provider ? DEPRECATED_MCP_PROVIDERS.has(provider) : false;
+}
+var DEPRECATED_MCP_PROVIDERS;
+var init_resolver = __esm({
+  "src/features/delegation-routing/resolver.ts"() {
+    "use strict";
+    init_types2();
+    DEPRECATED_MCP_PROVIDERS = /* @__PURE__ */ new Set([
+      "codex",
+      "gemini"
+    ]);
+  }
+});
+
+// src/features/delegation-routing/index.ts
+var init_delegation_routing = __esm({
+  "src/features/delegation-routing/index.ts"() {
+    "use strict";
+    init_resolver();
+    init_types2();
+  }
+});
+
 // src/config/loader.ts
 import { readFileSync as readFileSync3, existsSync as existsSync7 } from "fs";
 import { join as join11, dirname as dirname6 } from "path";
@@ -3567,13 +3592,13 @@ function loadEnvConfig() {
 function warnOnDeprecatedDelegationRouting(config) {
   const deprecatedProviders = /* @__PURE__ */ new Set();
   const defaultProvider = config.delegationRouting?.defaultProvider;
-  if (defaultProvider === "codex" || defaultProvider === "gemini") {
+  if (isDeprecatedMcpProvider(defaultProvider)) {
     deprecatedProviders.add(defaultProvider);
   }
   const roles = config.delegationRouting?.roles ?? {};
   for (const route of Object.values(roles)) {
     const provider = route?.provider;
-    if (provider === "codex" || provider === "gemini") {
+    if (isDeprecatedMcpProvider(provider)) {
       deprecatedProviders.add(provider);
     }
   }
@@ -3712,6 +3737,7 @@ var init_loader = __esm({
     init_jsonc();
     init_models();
     init_types2();
+    init_delegation_routing();
     DEFAULT_CONFIG = buildDefaultConfig();
     CANONICAL_TEAM_ROLE_SET = new Set(CANONICAL_TEAM_ROLES);
     KNOWN_AGENT_NAME_SET = new Set(KNOWN_AGENT_NAMES);

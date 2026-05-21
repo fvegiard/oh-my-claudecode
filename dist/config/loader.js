@@ -13,6 +13,7 @@ import { getConfigDir } from "../utils/paths.js";
 import { parseJsonc } from "../utils/jsonc.js";
 import { getDefaultTierModels, BUILTIN_EXTERNAL_MODEL_DEFAULTS, shouldAutoForceInherit, } from "./models.js";
 import { normalizeDelegationRole } from "../features/delegation-routing/types.js";
+import { isDeprecatedMcpProvider } from "../features/delegation-routing/index.js";
 /**
  * Default configuration.
  *
@@ -391,13 +392,13 @@ export function loadEnvConfig() {
 function warnOnDeprecatedDelegationRouting(config) {
     const deprecatedProviders = new Set();
     const defaultProvider = config.delegationRouting?.defaultProvider;
-    if (defaultProvider === "codex" || defaultProvider === "gemini") {
+    if (isDeprecatedMcpProvider(defaultProvider)) {
         deprecatedProviders.add(defaultProvider);
     }
     const roles = config.delegationRouting?.roles ?? {};
     for (const route of Object.values(roles)) {
         const provider = route?.provider;
-        if (provider === "codex" || provider === "gemini") {
+        if (isDeprecatedMcpProvider(provider)) {
             deprecatedProviders.add(provider);
         }
     }
@@ -414,6 +415,7 @@ function warnOnDeprecatedDelegationRouting(config) {
  */
 const CANONICAL_TEAM_ROLE_SET = new Set(CANONICAL_TEAM_ROLES);
 const KNOWN_AGENT_NAME_SET = new Set(KNOWN_AGENT_NAMES);
+// /team CLI workers — codex/gemini here are CLI integrations, NOT the deprecated MCP delegationRouting providers.
 const TEAM_ROLE_PROVIDERS = new Set(["claude", "codex", "gemini"]);
 const TEAM_ROLE_TIERS = new Set(["HIGH", "MEDIUM", "LOW"]);
 export function validateTeamConfig(config) {

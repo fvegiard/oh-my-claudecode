@@ -27,6 +27,7 @@ import {
   shouldAutoForceInherit,
 } from "./models.js";
 import { normalizeDelegationRole } from "../features/delegation-routing/types.js";
+import { isDeprecatedMcpProvider } from "../features/delegation-routing/index.js";
 
 /**
  * Default configuration.
@@ -446,14 +447,14 @@ export function loadEnvConfig(): Partial<PluginConfig> {
 function warnOnDeprecatedDelegationRouting(config: PluginConfig): void {
   const deprecatedProviders = new Set<DelegationProvider>();
   const defaultProvider = config.delegationRouting?.defaultProvider;
-  if (defaultProvider === "codex" || defaultProvider === "gemini") {
+  if (isDeprecatedMcpProvider(defaultProvider)) {
     deprecatedProviders.add(defaultProvider);
   }
 
   const roles = config.delegationRouting?.roles ?? {};
   for (const route of Object.values(roles)) {
     const provider = route?.provider;
-    if (provider === "codex" || provider === "gemini") {
+    if (isDeprecatedMcpProvider(provider)) {
       deprecatedProviders.add(provider);
     }
   }
@@ -475,6 +476,7 @@ function warnOnDeprecatedDelegationRouting(config: PluginConfig): void {
  */
 const CANONICAL_TEAM_ROLE_SET = new Set<string>(CANONICAL_TEAM_ROLES);
 const KNOWN_AGENT_NAME_SET = new Set<string>(KNOWN_AGENT_NAMES);
+// /team CLI workers — codex/gemini here are CLI integrations, NOT the deprecated MCP delegationRouting providers.
 const TEAM_ROLE_PROVIDERS = new Set(["claude", "codex", "gemini"]);
 const TEAM_ROLE_TIERS = new Set(["HIGH", "MEDIUM", "LOW"]);
 

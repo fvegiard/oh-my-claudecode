@@ -3,7 +3,8 @@
  *
  * Resolves which provider/tool to use for a given agent role.
  */
-import type { DelegationDecision, ResolveDelegationOptions } from '../../shared/types.js';
+import type { DelegationRoutingConfig, DelegationRoute, DelegationDecision, ResolveDelegationOptions } from '../../shared/types.js';
+export declare const DEPRECATED_MCP_PROVIDER_WARNING = "[OMC] Codex/Gemini MCP delegation is deprecated. Use /team to coordinate CLI workers instead.";
 /**
  * Resolve delegation decision based on configuration and context
  *
@@ -14,6 +15,7 @@ import type { DelegationDecision, ResolveDelegationOptions } from '../../shared/
  * 4. defaultProvider
  */
 export declare function resolveDelegation(options: ResolveDelegationOptions): DelegationDecision;
+export declare function isDeprecatedMcpProvider(provider: DelegationRoute['provider'] | DelegationRoutingConfig['defaultProvider']): provider is 'codex' | 'gemini';
 /**
  * Parse fallback chain format ["claude:explore", "codex:gpt-5"]
  */

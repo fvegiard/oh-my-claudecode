@@ -128,7 +128,7 @@ try {
     const data = JSON.parse(readFileSync(hooksJsonPath, 'utf-8'));
     let patched = false;
 
-    // Pattern 2 (old, Windows backward-compat): sh find-node.sh <target> [args]
+    // Pattern 3 (old, Windows backward-compat): sh find-node.sh <target> [args]
     const findNodePattern =
       /^sh "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/find-node\.sh" "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([^"]+)"(.*)$/;
     const currentFindNodePattern =
