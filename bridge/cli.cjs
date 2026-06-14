@@ -3578,6 +3578,7 @@ function resolveClaudeFamily(modelId) {
   if (lower.includes("sonnet")) return "SONNET";
   if (lower.includes("opus")) return "OPUS";
   if (lower.includes("haiku")) return "HAIKU";
+  if (lower.includes("fable")) return "FABLE";
   return null;
 }
 function hasBedrockModelId(modelIds) {
@@ -3661,7 +3662,7 @@ var init_models = __esm({
     init_ssrf_guard();
     DIRECT_MODEL_ENV_KEYS = ["CLAUDE_MODEL", "ANTHROPIC_MODEL"];
     INHERIT_TIER_PRIORITY = ["MEDIUM", "HIGH", "LOW"];
-    CLAUDE_TIER_ALIASES = /* @__PURE__ */ new Set(["sonnet", "opus", "haiku"]);
+    CLAUDE_TIER_ALIASES = /* @__PURE__ */ new Set(["sonnet", "opus", "haiku", "fable"]);
     TIER_ENV_KEYS = {
       LOW: [
         "OMC_MODEL_LOW",
@@ -3682,7 +3683,8 @@ var init_models = __esm({
     CLAUDE_FAMILY_DEFAULTS = {
       HAIKU: "claude-haiku-4-5",
       SONNET: "claude-sonnet-4-6",
-      OPUS: "claude-opus-4-8"
+      OPUS: "claude-opus-4-8",
+      FABLE: "claude-fable-5"
     };
     BUILTIN_TIER_MODEL_DEFAULTS = {
       LOW: CLAUDE_FAMILY_DEFAULTS.HAIKU,
@@ -3692,7 +3694,8 @@ var init_models = __esm({
     CLAUDE_FAMILY_HIGH_VARIANTS = {
       HAIKU: `${CLAUDE_FAMILY_DEFAULTS.HAIKU}-high`,
       SONNET: `${CLAUDE_FAMILY_DEFAULTS.SONNET}-high`,
-      OPUS: `${CLAUDE_FAMILY_DEFAULTS.OPUS}-high`
+      OPUS: `${CLAUDE_FAMILY_DEFAULTS.OPUS}-high`,
+      FABLE: `${CLAUDE_FAMILY_DEFAULTS.FABLE}-high`
     };
     BUILTIN_EXTERNAL_MODEL_DEFAULTS = {
       codexModel: "gpt-5.3-codex",
@@ -16530,6 +16533,33 @@ function processSubagentStart(input) {
     return { continue: true };
   }
 }
+function findReconcilableRunningAgent(state, agentType) {
+  const candidates = [];
+  for (let i = 0; i < state.agents.length; i++) {
+    const agent = state.agents[i];
+    if (agent.status !== "running") continue;
+    if (agentType && agent.agent_type !== agentType) continue;
+    candidates.push(i);
+  }
+  return candidates.length === 1 ? candidates[0] : -1;
+}
+function reapStaleRunningAgents(state, nowIso) {
+  const now = new Date(nowIso).getTime();
+  let reaped = 0;
+  for (const agent of state.agents) {
+    if (agent.status !== "running") continue;
+    const startTime = new Date(agent.started_at).getTime();
+    if (now - startTime > STALE_THRESHOLD_MS2) {
+      agent.status = "failed";
+      agent.completed_at = nowIso;
+      agent.duration_ms = now - startTime;
+      agent.output_summary = "Marked as stale during unmatched stop reconciliation - exceeded timeout";
+      state.total_failed++;
+      reaped++;
+    }
+  }
+  return reaped;
+}
 function processSubagentStop(input) {
   const sessionId = resolveSessionId({ context: "hook", hookPayload: input });
   const writePath = resolveWritePath(input.cwd, sessionId);
@@ -16538,17 +16568,18 @@ function processSubagentStop(input) {
   try {
     return withFileLockSync(lockPath, () => {
       const state = readTrackingState(input.cwd, sessionId);
-      const agentIndex = state.agents.findIndex(
-        (a) => a.agent_id === input.agent_id
-      );
       const succeeded = input.success !== false;
+      const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+      let agentIndex = input.agent_id ? state.agents.findIndex((a) => a.agent_id === input.agent_id) : -1;
+      if (agentIndex === -1 && input.agent_id) {
+        agentIndex = findReconcilableRunningAgent(state, input.agent_type);
+      }
       if (agentIndex !== -1) {
         const agent = state.agents[agentIndex];
         agent.status = succeeded ? "completed" : "failed";
-        agent.completed_at = (/* @__PURE__ */ new Date()).toISOString();
+        agent.completed_at = nowIso;
         const startTime = new Date(agent.started_at).getTime();
-        const endTime = new Date(agent.completed_at).getTime();
-        agent.duration_ms = endTime - startTime;
+        agent.duration_ms = new Date(nowIso).getTime() - startTime;
         if (input.output) {
           agent.output_summary = input.output.substring(0, 500);
         }
@@ -16557,7 +16588,27 @@ function processSubagentStop(input) {
         } else {
           state.total_failed++;
         }
+      } else if (input.agent_id) {
+        reapStaleRunningAgents(state, nowIso);
+        const synthetic = {
+          agent_id: input.agent_id,
+          agent_type: input.agent_type || "unknown",
+          started_at: nowIso,
+          parent_mode: detectParentMode(input.cwd),
+          status: succeeded ? "completed" : "failed",
+          completed_at: nowIso,
+          duration_ms: 0,
+          output_summary: input.output ? input.output.substring(0, 500) : void 0
+        };
+        state.agents.push(synthetic);
+        agentIndex = state.agents.length - 1;
+        if (succeeded) {
+          state.total_completed++;
+        } else {
+          state.total_failed++;
+        }
       }
+      const stoppedAgent = agentIndex !== -1 ? state.agents[agentIndex] : void 0;
       const completedAgents = state.agents.filter(
         (a) => a.status === "completed" || a.status === "failed"
       );
@@ -16575,9 +16626,8 @@ function processSubagentStop(input) {
       writeTrackingState(input.cwd, state, sessionId);
       if (input.agent_id) {
         try {
-          const trackedAgent = agentIndex !== -1 ? state.agents[agentIndex] : void 0;
-          const agentType = trackedAgent?.agent_type || input.agent_type || "unknown";
-          recordAgentStop(input.cwd, input.session_id, input.agent_id, agentType, succeeded, trackedAgent?.duration_ms);
+          const agentType = stoppedAgent?.agent_type || input.agent_type || "unknown";
+          recordAgentStop(input.cwd, input.session_id, input.agent_id, agentType, succeeded, stoppedAgent?.duration_ms);
         } catch {
         }
         try {
@@ -16585,8 +16635,8 @@ function processSubagentStop(input) {
             sessionId: input.session_id,
             agentId: input.agent_id,
             success: succeeded,
-            outputSummary: agentIndex !== -1 ? state.agents[agentIndex]?.output_summary : input.output,
-            at: agentIndex !== -1 ? state.agents[agentIndex]?.completed_at : (/* @__PURE__ */ new Date()).toISOString()
+            outputSummary: stoppedAgent?.output_summary ?? input.output,
+            at: stoppedAgent?.completed_at ?? nowIso
           }, sessionId);
         } catch {
         }
@@ -22813,7 +22863,7 @@ var init_agents_overlay = __esm({
 
 // src/cli/tmux-utils.ts
 function tmuxEnv() {
-  const { TMUX: _, ...env2 } = process.env;
+  const { TMUX: _, PSMUX_SESSION: __, ...env2 } = process.env;
   return env2;
 }
 function resolveEnv(opts) {
@@ -29686,7 +29736,8 @@ var init_delegation_enforcer = __esm({
     FAMILY_TO_ALIAS = {
       SONNET: "sonnet",
       OPUS: "opus",
-      HAIKU: "haiku"
+      HAIKU: "haiku",
+      FABLE: "fable"
     };
   }
 });
@@ -30089,6 +30140,7 @@ __export(tmux_session_exports, {
   shouldAttemptAdaptiveRetry: () => shouldAttemptAdaptiveRetry,
   spawnBridgeInSession: () => spawnBridgeInSession,
   spawnWorkerInPane: () => spawnWorkerInPane,
+  splitTeamWorkerPane: () => splitTeamWorkerPane,
   validateTmux: () => validateTmux,
   waitForPaneReady: () => waitForPaneReady
 });
@@ -30484,6 +30536,25 @@ function quoteBridgeShellArg(value) {
 function spawnBridgeInSession(tmuxSession, bridgeScriptPath, configFilePath) {
   const cmd = [process.execPath, bridgeScriptPath, "--config", configFilePath].map(quoteBridgeShellArg).join(" ");
   tmuxExec(["send-keys", "-t", tmuxSession, cmd, "Enter"], { stripTmux: true, stdio: "pipe", timeout: 5e3 });
+}
+async function splitTeamWorkerPane(splitTarget, direction, cwd2) {
+  if (isCmuxContext()) {
+    return cmuxSplitSurface(splitTarget, direction, cwd2);
+  }
+  const splitType = direction === "right" ? "-h" : "-v";
+  const splitResult = await tmuxExecAsync([
+    "split-window",
+    splitType,
+    "-t",
+    splitTarget,
+    "-d",
+    "-P",
+    "-F",
+    "#{pane_id}",
+    "-c",
+    cwd2
+  ]);
+  return splitResult.stdout.split("\n")[0]?.trim() || null;
 }
 async function createTeamSession(teamName, workerCount, cwd2, options = {}) {
   const multiplexerContext = detectTeamMultiplexerContext();
@@ -34106,20 +34177,8 @@ async function waitForWorkerStartupEvidence(teamName, workerName2, taskId, cwd2,
 }
 async function spawnV2Worker(opts) {
   const splitTarget = opts.existingWorkerPaneIds.length === 0 ? opts.leaderPaneId : opts.existingWorkerPaneIds[opts.existingWorkerPaneIds.length - 1];
-  const splitType = opts.existingWorkerPaneIds.length === 0 ? "-h" : "-v";
-  const splitResult = await tmuxExecAsync([
-    "split-window",
-    splitType,
-    "-t",
-    splitTarget,
-    "-d",
-    "-P",
-    "-F",
-    "#{pane_id}",
-    "-c",
-    opts.workerCwd ?? opts.cwd
-  ]);
-  const paneId = splitResult.stdout.split("\n")[0]?.trim();
+  const splitDirection = opts.existingWorkerPaneIds.length === 0 ? "right" : "down";
+  const paneId = await splitTeamWorkerPane(splitTarget, splitDirection, opts.workerCwd ?? opts.cwd);
   if (!paneId) {
     return { paneId: null, startupAssigned: false, startupFailureReason: "pane_id_missing" };
   }
@@ -36032,20 +36091,8 @@ async function spawnWorkerForTask(runtime, workerNameValue, taskIndex) {
   const marked = await markTaskInProgress(root2, taskId, workerNameValue, runtime.teamName, runtime.cwd);
   if (!marked) return "";
   const splitTarget = runtime.workerPaneIds.length === 0 ? runtime.leaderPaneId : runtime.workerPaneIds[runtime.workerPaneIds.length - 1];
-  const splitType = runtime.workerPaneIds.length === 0 ? "-h" : "-v";
-  const splitResult = await tmuxExecAsync([
-    "split-window",
-    splitType,
-    "-t",
-    splitTarget,
-    "-d",
-    "-P",
-    "-F",
-    "#{pane_id}",
-    "-c",
-    runtime.cwd
-  ]);
-  const paneId = splitResult.stdout.split("\n")[0]?.trim();
+  const splitDirection = runtime.workerPaneIds.length === 0 ? "right" : "down";
+  const paneId = await splitTeamWorkerPane(splitTarget, splitDirection, runtime.cwd);
   if (!paneId) {
     try {
       await resetTaskToPending(root2, taskId, runtime.teamName, runtime.cwd);
@@ -43997,6 +44044,7 @@ function readKeychainCredential(serviceName, account) {
       expiresAt: creds.expiresAt,
       refreshToken: creds.refreshToken,
       source: "keychain",
+      keychainAccount: account ?? null,
       subscriptionType: creds.subscriptionType,
       rateLimitTier: creds.rateLimitTier
     };
@@ -44232,7 +44280,50 @@ function fetchUsageFromZai() {
     }
   });
 }
+function writeKeychainCredentials(creds) {
+  if (process.platform !== "darwin") return;
+  try {
+    const serviceName = getKeychainServiceName();
+    const account = creds.keychainAccount ?? void 0;
+    const readArgs = account ? ["find-generic-password", "-s", serviceName, "-a", account, "-w"] : ["find-generic-password", "-s", serviceName, "-w"];
+    let existing = {};
+    try {
+      const raw = (0, import_child_process30.execFileSync)("/usr/bin/security", readArgs, {
+        encoding: "utf-8",
+        timeout: 2e3,
+        stdio: ["pipe", "pipe", "pipe"]
+      }).trim();
+      if (raw) existing = JSON.parse(raw);
+    } catch {
+    }
+    if (existing.claudeAiOauth && typeof existing.claudeAiOauth === "object") {
+      const inner = existing.claudeAiOauth;
+      inner.accessToken = creds.accessToken;
+      if (creds.expiresAt != null) inner.expiresAt = creds.expiresAt;
+      if (creds.refreshToken) inner.refreshToken = creds.refreshToken;
+    } else {
+      existing.accessToken = creds.accessToken;
+      if (creds.expiresAt != null) existing.expiresAt = creds.expiresAt;
+      if (creds.refreshToken) existing.refreshToken = creds.refreshToken;
+    }
+    const newJson = JSON.stringify(existing);
+    const writeArgs = account ? ["add-generic-password", "-s", serviceName, "-a", account, "-w", newJson, "-U"] : ["add-generic-password", "-s", serviceName, "-w", newJson, "-U"];
+    (0, import_child_process30.execFileSync)("/usr/bin/security", writeArgs, {
+      encoding: "utf-8",
+      timeout: 2e3,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+  } catch {
+    if (process.env.OMC_DEBUG) {
+      console.error("[usage-api] Failed to write back refreshed credentials to Keychain");
+    }
+  }
+}
 function writeBackCredentials(creds) {
+  if (creds.source === "keychain") {
+    writeKeychainCredentials(creds);
+    return;
+  }
   try {
     const credPath = (0, import_path115.join)(getClaudeConfigDir(), ".credentials.json");
     if (!(0, import_fs96.existsSync)(credPath)) return;
@@ -85541,7 +85632,7 @@ Please continue working on these tasks.
 This environment uses a non-standard model provider (AWS Bedrock, Google Vertex AI, or a proxy such as CC Switch / LiteLLM).
 
 How to pass \`model\` on Task/Agent calls:
-- Prefer a tier alias: \`model: "sonnet"\`, \`model: "opus"\`, or \`model: "haiku"\`. OMC's pre-tool enforcer resolves these to provider-safe IDs when one of these env vars is set: \`ANTHROPIC_DEFAULT_SONNET_MODEL\` (and sibling \`ANTHROPIC_DEFAULT_OPUS_MODEL\` / \`ANTHROPIC_DEFAULT_HAIKU_MODEL\`), \`CLAUDE_CODE_BEDROCK_SONNET_MODEL\` (and sibling \`CLAUDE_CODE_BEDROCK_OPUS_MODEL\` / \`CLAUDE_CODE_BEDROCK_HAIKU_MODEL\`), or \`OMC_SUBAGENT_MODEL\`.
+- Prefer a tier alias: \`model: "sonnet"\`, \`model: "opus"\`, \`model: "haiku"\`, or \`model: "fable"\` (Claude Fable 5, above Opus). OMC's pre-tool enforcer resolves these to provider-safe IDs when one of these env vars is set: \`ANTHROPIC_DEFAULT_SONNET_MODEL\` (and siblings \`ANTHROPIC_DEFAULT_OPUS_MODEL\` / \`ANTHROPIC_DEFAULT_HAIKU_MODEL\` / \`ANTHROPIC_DEFAULT_FABLE_MODEL\`), \`CLAUDE_CODE_BEDROCK_SONNET_MODEL\` (and siblings \`CLAUDE_CODE_BEDROCK_OPUS_MODEL\` / \`CLAUDE_CODE_BEDROCK_HAIKU_MODEL\` / \`CLAUDE_CODE_BEDROCK_FABLE_MODEL\`), or \`OMC_SUBAGENT_MODEL\`.
 - If none of those env vars are configured, the enforcer will deny the tier alias with an env-var configuration hint \u2014 set one of them in your \`settings.json\` env or shell profile.
 - The enforcer denies tier aliases it cannot resolve. It also denies provider-specific IDs that carry a \`[1m]\` context-window suffix or otherwise fail subagent-safe validation (sub-agents cannot inherit \`[1m]\`). Valid provider-specific IDs without extended-context suffixes are allowed.
 
@@ -89975,12 +90066,13 @@ function parseTeamArgs(tokens, defaultAgentType = "claude") {
 }
 function buildTeamLaunchTasks(parsed, decomposition, effectiveWorkerCount) {
   const tasks = [];
-  if (parsed.explicitWorkerSpec && !parsed.noDecompose && decomposition.strategy !== "atomic" && decomposition.subtasks.length > 1 && decomposition.subtasks.length !== effectiveWorkerCount) {
+  const isPreauthoredScopeList = decomposition.strategy === "numbered" || decomposition.strategy === "bulleted";
+  if (parsed.explicitWorkerSpec && !parsed.noDecompose && isPreauthoredScopeList && decomposition.subtasks.length > 1 && decomposition.subtasks.length !== effectiveWorkerCount) {
     throw new Error(
       `Pre-authored task scope count (${decomposition.subtasks.length}) must match explicit worker count (${effectiveWorkerCount}); use --no-decompose to give every worker the full launch text.`
     );
   }
-  const canUseDecomposition = !parsed.noDecompose && decomposition.strategy !== "atomic" && decomposition.subtasks.length > 1 && (!parsed.explicitWorkerSpec || decomposition.subtasks.length === effectiveWorkerCount);
+  const canUseDecomposition = !parsed.noDecompose && decomposition.strategy !== "atomic" && decomposition.subtasks.length > 1 && (!parsed.explicitWorkerSpec || isPreauthoredScopeList && decomposition.subtasks.length === effectiveWorkerCount);
   for (let i = 0; i < effectiveWorkerCount; i++) {
     const workerSpec = parsed.workerSpecs[i];
     const roleLabel = workerSpec?.role ? ` (${workerSpec.role})` : "";

@@ -29,6 +29,7 @@ vi.mock('../team/tmux-session.js', () => ({
     killTeamSession: vi.fn(),
     resolveSplitPaneWorkerPaneIds: vi.fn(() => []),
     waitForPaneReady: vi.fn(() => Promise.resolve(true)),
+    splitTeamWorkerPane: vi.fn(() => Promise.resolve(null)),
 }));
 vi.mock('../team/worker-bootstrap.js', () => ({
     composeInitialInbox: vi.fn(),

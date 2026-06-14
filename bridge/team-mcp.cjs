@@ -18079,7 +18079,7 @@ var import_child_process2 = require("child_process");
 var import_path3 = require("path");
 var import_util5 = require("util");
 function tmuxEnv() {
-  const { TMUX: _, ...env } = process.env;
+  const { TMUX: _, PSMUX_SESSION: __, ...env } = process.env;
   return env;
 }
 function resolveEnv(opts) {

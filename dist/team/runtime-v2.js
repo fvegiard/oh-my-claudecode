@@ -29,7 +29,7 @@ import { DEFAULT_TEAM_GOVERNANCE, DEFAULT_TEAM_TRANSPORT_POLICY, getConfigGovern
 import { inferPhase } from './phase-controller.js';
 import { validateTeamName } from './team-name.js';
 import { buildWorkerArgv, getContract, resolveValidatedBinaryPath, getWorkerEnv as getModelWorkerEnv, isPromptModeAgent, getPromptModeArgs, resolveClaudeWorkerModel, } from './model-contract.js';
-import { createTeamSession, spawnWorkerInPane, sendToWorker, killTeamSession, waitForPaneReady, paneHasActiveTask, paneLooksReady, applyMainVerticalLayout, getWorkerLiveness, captureTeamPane, sendTeamPaneKey, } from './tmux-session.js';
+import { createTeamSession, spawnWorkerInPane, sendToWorker, killTeamSession, waitForPaneReady, paneHasActiveTask, paneLooksReady, applyMainVerticalLayout, getWorkerLiveness, captureTeamPane, sendTeamPaneKey, splitTeamWorkerPane, } from './tmux-session.js';
 import { composeInitialInbox, ensureWorkerStateDir, writeWorkerOverlay, generateTriggerMessage, generatePromptModeStartupPrompt, } from './worker-bootstrap.js';
 import { queueInboxInstruction } from './mcp-comm.js';
 import { cleanupTeamWorktrees, inspectTeamWorktreeCleanupSafety, ensureWorkerWorktree, installWorktreeRootAgents, normalizeTeamWorktreeMode, } from './git-worktree.js';
@@ -317,13 +317,8 @@ async function spawnV2Worker(opts) {
     const splitTarget = opts.existingWorkerPaneIds.length === 0
         ? opts.leaderPaneId
         : opts.existingWorkerPaneIds[opts.existingWorkerPaneIds.length - 1];
-    const splitType = opts.existingWorkerPaneIds.length === 0 ? '-h' : '-v';
-    const splitResult = await tmuxExecAsync([
-        'split-window', splitType, '-t', splitTarget,
-        '-d', '-P', '-F', '#{pane_id}',
-        '-c', opts.workerCwd ?? opts.cwd,
-    ]);
-    const paneId = splitResult.stdout.split('\n')[0]?.trim();
+    const splitDirection = opts.existingWorkerPaneIds.length === 0 ? 'right' : 'down';
+    const paneId = await splitTeamWorkerPane(splitTarget, splitDirection, opts.workerCwd ?? opts.cwd);
     if (!paneId) {
         return { paneId: null, startupAssigned: false, startupFailureReason: 'pane_id_missing' };
     }

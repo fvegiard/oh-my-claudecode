@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import { tmuxExecAsync } from '../cli/tmux-utils.js';
 import { buildWorkerArgv, resolveValidatedBinaryPath, getWorkerEnv as getModelWorkerEnv, isPromptModeAgent, getPromptModeArgs, resolveClaudeWorkerModel } from './model-contract.js';
 import { validateTeamName } from './team-name.js';
-import { createTeamSession, spawnWorkerInPane, sendToWorker, isWorkerAlive, killTeamSession, resolveSplitPaneWorkerPaneIds, waitForPaneReady, applyMainVerticalLayout, killTeamPane, } from './tmux-session.js';
+import { createTeamSession, spawnWorkerInPane, sendToWorker, isWorkerAlive, killTeamSession, resolveSplitPaneWorkerPaneIds, waitForPaneReady, applyMainVerticalLayout, killTeamPane, splitTeamWorkerPane, } from './tmux-session.js';
 import { composeInitialInbox, ensureWorkerStateDir, writeWorkerOverlay, generateTriggerMessage, } from './worker-bootstrap.js';
 import { cleanupTeamWorktrees } from './git-worktree.js';
 import { withTaskLock, writeTaskFailure, DEFAULT_MAX_TASK_RETRIES, } from './task-file-ops.js';
@@ -521,13 +521,8 @@ export async function spawnWorkerForTask(runtime, workerNameValue, taskIndex) {
     const splitTarget = runtime.workerPaneIds.length === 0
         ? runtime.leaderPaneId
         : runtime.workerPaneIds[runtime.workerPaneIds.length - 1];
-    const splitType = runtime.workerPaneIds.length === 0 ? '-h' : '-v';
-    const splitResult = await tmuxExecAsync([
-        'split-window', splitType, '-t', splitTarget,
-        '-d', '-P', '-F', '#{pane_id}',
-        '-c', runtime.cwd,
-    ]);
-    const paneId = splitResult.stdout.split('\n')[0]?.trim();
+    const splitDirection = runtime.workerPaneIds.length === 0 ? 'right' : 'down';
+    const paneId = await splitTeamWorkerPane(splitTarget, splitDirection, runtime.cwd);
     if (!paneId) {
         try {
             await resetTaskToPending(root, taskId, runtime.teamName, runtime.cwd);

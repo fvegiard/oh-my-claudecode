@@ -1,48 +1,54 @@
-# oh-my-claudecode v4.14.6: $TMPDIR transcript dogfood, Japanese keyword routing, team dispatch hardening
+# oh-my-claudecode v4.14.7: Team launcher, Windows tmux hardening, agent model routing
 
 ## Release Notes
 
-Patch release with **1 new feature**, **8 bug fixes**, and **3 hardening/quality updates** across the post-`v4.14.5` dev line.
+Patch release with **2 new features**, **11 bug fixes**, and **2 CI/test hardening updates** across the post-`v4.14.6` dev line.
 
 ### Highlights
 
-- **fix(transcript): honor `$TMPDIR` in transcript path validation; align worktree test encoding with Claude dot encoding** (#3230)
-- **feat(keyword-detector): Japanese keyword routing for 7 more skills + KO/JA docs** (#3218)
-- **fix(team): surface substantive task output when finals are terse** (#3224)
-- **fix(team): only stamp dispatch cooldowns on successful delivery** (#3227)
-- **fix(ask): pipe long/multiline/frontmatter prompts to Claude via stdin** (#3223)
+- **fix(team): launch single-worker prose teams and spawn cmux worker panes** (#3268 / #3267)
+- **fix(tmux): strip `PSMUX_SESSION` for detached psmux creation** (#3265)
+- **feat(routing): add Claude Fable 5 tier alias and model id support** (#3247 / #3246)
+- **fix(hooks): honor `agents.<name>.model` for native Task/Agent calls** (#3243 / #3242)
+- **fix: write refreshed OAuth tokens back to Keychain** (#3239 / #3238)
 
 ### New Features
 
-- **feat(keyword-detector): Japanese keyword routing for 7 more skills + KO/JA docs** (#3218)
+- **feat(routing): add Claude Fable 5 tier alias and model id support** (#3247 / #3246)
+- **[codex] add Cursor provider support** (#3251)
 
 ### Bug Fixes
 
-- **fix(transcript): honor `$TMPDIR` in path validation; align test encoding with Claude's dot encoding** (#3230)
-- **fix(team): surface substantive task output when finals are terse** (#3224)
-- **fix(team): only stamp dispatch cooldowns on successful delivery** (#3227)
-- **fix(team): exclude harness files from worktree auto-merge** (#3226)
-- **fix(team): validate `N:agent:role` specs instead of silently collapsing to Claude** (#3225)
-- **fix(ask): pipe long/multiline/frontmatter prompts to Claude via stdin** (#3223)
-- **fix(notifications): honor proxy env for Telegram**
-- **fix(notifications): dispatch session-idle from plugin Stop hook**
-- **fix(subagents): suppress SubagentStop context reinjection**
-- **fix: ignore stale plugin root for update notices** (#3214)
+- **fix(team): launch single-worker prose teams and spawn cmux worker panes** (#3268 / #3267)
+- **fix(tmux): strip `PSMUX_SESSION` for detached psmux creation** (#3265)
+- **fix(post-tool-use-failure): add `DISABLE_OMC` / `OMC_SKIP_HOOKS` skip guard** (#3255 / #3253)
+- **fix(hooks): reconcile unmatched subagent fork stop events** (#3254 / #3252)
+- **fix(hooks): honor `agents.<name>.model` for native Task/Agent calls** (#3243 / #3242)
+- **fix(hooks): add `async:true` to SessionEnd hooks to prevent Windows shutdown cancellation** (#3241 / #3240)
+- **fix: write refreshed OAuth tokens back to Keychain** (#3239 / #3238)
+- **fix(wiki): create `environment.md` via dedicated reserved-safe write path** (#3237 / #3219)
+- **fix(agents): make verifier agent read-only** (#3236)
+- **fix(hooks): suppress verify-deliverables SubagentStop reinjection** (#3235 / #3233)
+- **fix(agents): extend final-output contract to advisory agents** (#3232)
 
-### Quality & Hardening
+### CI / Test Hardening
 
-- **Ensure advisory agents return substantive findings** (#3217)
-- **Fix SubagentStop tracker output loop** (#3204)
-- **test: tolerate minor CI subagent lock jitter** (#3205)
+- **ci(npm-pack-test): harden global tarball install against `ENOTEMPTY` rename** (#3257)
+- **ci(upgrade-test): harden v4.9.3 npm install against `ENOTEMPTY` rename failure/hang** (#3256)
+- **test(hud): cover z.ai Anthropic endpoint routing** (#3231)
+
+### Docs / Metadata
+
+- Add curated geobench profile, visibility spec, and schema follow-ups.
 
 ### Stats
 
-- **12 PR-linked updates** | **1 new feature** | **8+ bug fixes** | **3 hardening/quality updates**
+- **16 PR-linked updates** | **2 new features** | **11 bug fixes** | **3 CI/test hardening updates**
 
 ### Install / Update
 
 ```bash
-npm install -g oh-my-claude-sisyphus@4.14.6
+npm install -g oh-my-claude-sisyphus@4.14.7
 ```
 
 Or reinstall the plugin:
@@ -50,7 +56,7 @@ Or reinstall the plugin:
 claude /install-plugin oh-my-claudecode
 ```
 
-**Full Changelog**: https://github.com/Yeachan-Heo/oh-my-claudecode/compare/v4.14.5...v4.14.6
+**Full Changelog**: https://github.com/Yeachan-Heo/oh-my-claudecode/compare/v4.14.6...v4.14.7
 
 ## Contributors
 

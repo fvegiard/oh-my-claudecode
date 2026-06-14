@@ -414,9 +414,16 @@ export function buildStartupTasks(parsed) {
 }
 export function buildTeamLaunchTasks(parsed, decomposition, effectiveWorkerCount) {
     const tasks = [];
+    // Numbered/bulleted lists are explicit pre-authored scopes the user typed out,
+    // so they must line up with an explicit worker count. A `conjunction` split is
+    // only a heuristic guess at parallelism inside free-form prose (e.g.
+    // "Read X and execute it then commit"), so it must never reject or reshape an
+    // explicit worker spec — every worker just receives the full launch text. (#3267)
+    const isPreauthoredScopeList = decomposition.strategy === 'numbered'
+        || decomposition.strategy === 'bulleted';
     if (parsed.explicitWorkerSpec
         && !parsed.noDecompose
-        && decomposition.strategy !== 'atomic'
+        && isPreauthoredScopeList
         && decomposition.subtasks.length > 1
         && decomposition.subtasks.length !== effectiveWorkerCount) {
         throw new Error(`Pre-authored task scope count (${decomposition.subtasks.length}) must match explicit worker count (${effectiveWorkerCount}); use --no-decompose to give every worker the full launch text.`);
@@ -424,7 +431,8 @@ export function buildTeamLaunchTasks(parsed, decomposition, effectiveWorkerCount
     const canUseDecomposition = !parsed.noDecompose
         && decomposition.strategy !== 'atomic'
         && decomposition.subtasks.length > 1
-        && (!parsed.explicitWorkerSpec || decomposition.subtasks.length === effectiveWorkerCount);
+        && (!parsed.explicitWorkerSpec
+            || (isPreauthoredScopeList && decomposition.subtasks.length === effectiveWorkerCount));
     for (let i = 0; i < effectiveWorkerCount; i++) {
         const workerSpec = parsed.workerSpecs[i];
         const roleLabel = workerSpec?.role ? ` (${workerSpec.role})` : '';

@@ -1852,7 +1852,7 @@ import {
 import { basename as basename3, isAbsolute as isAbsolute3, win32 as win32Path } from "path";
 import { promisify } from "util";
 function tmuxEnv() {
-  const { TMUX: _, ...env } = process.env;
+  const { TMUX: _, PSMUX_SESSION: __, ...env } = process.env;
   return env;
 }
 function resolveEnv(opts) {
@@ -2010,6 +2010,7 @@ __export(tmux_session_exports, {
   shouldAttemptAdaptiveRetry: () => shouldAttemptAdaptiveRetry,
   spawnBridgeInSession: () => spawnBridgeInSession,
   spawnWorkerInPane: () => spawnWorkerInPane,
+  splitTeamWorkerPane: () => splitTeamWorkerPane,
   validateTmux: () => validateTmux,
   waitForPaneReady: () => waitForPaneReady
 });
@@ -2411,6 +2412,25 @@ function quoteBridgeShellArg(value) {
 function spawnBridgeInSession(tmuxSession, bridgeScriptPath, configFilePath) {
   const cmd = [process.execPath, bridgeScriptPath, "--config", configFilePath].map(quoteBridgeShellArg).join(" ");
   tmuxExec(["send-keys", "-t", tmuxSession, cmd, "Enter"], { stripTmux: true, stdio: "pipe", timeout: 5e3 });
+}
+async function splitTeamWorkerPane(splitTarget, direction, cwd) {
+  if (isCmuxContext()) {
+    return cmuxSplitSurface(splitTarget, direction, cwd);
+  }
+  const splitType = direction === "right" ? "-h" : "-v";
+  const splitResult = await tmuxExecAsync([
+    "split-window",
+    splitType,
+    "-t",
+    splitTarget,
+    "-d",
+    "-P",
+    "-F",
+    "#{pane_id}",
+    "-c",
+    cwd
+  ]);
+  return splitResult.stdout.split("\n")[0]?.trim() || null;
 }
 async function createTeamSession(teamName, workerCount, cwd, options = {}) {
   const multiplexerContext = detectTeamMultiplexerContext();
@@ -3532,6 +3552,7 @@ function resolveClaudeFamily(modelId) {
   if (lower.includes("sonnet")) return "SONNET";
   if (lower.includes("opus")) return "OPUS";
   if (lower.includes("haiku")) return "HAIKU";
+  if (lower.includes("fable")) return "FABLE";
   return null;
 }
 function hasBedrockModelId(modelIds) {
@@ -3615,7 +3636,7 @@ var init_models = __esm({
     init_ssrf_guard();
     DIRECT_MODEL_ENV_KEYS = ["CLAUDE_MODEL", "ANTHROPIC_MODEL"];
     INHERIT_TIER_PRIORITY = ["MEDIUM", "HIGH", "LOW"];
-    CLAUDE_TIER_ALIASES = /* @__PURE__ */ new Set(["sonnet", "opus", "haiku"]);
+    CLAUDE_TIER_ALIASES = /* @__PURE__ */ new Set(["sonnet", "opus", "haiku", "fable"]);
     TIER_ENV_KEYS = {
       LOW: [
         "OMC_MODEL_LOW",
@@ -3636,7 +3657,8 @@ var init_models = __esm({
     CLAUDE_FAMILY_DEFAULTS = {
       HAIKU: "claude-haiku-4-5",
       SONNET: "claude-sonnet-4-6",
-      OPUS: "claude-opus-4-8"
+      OPUS: "claude-opus-4-8",
+      FABLE: "claude-fable-5"
     };
     BUILTIN_TIER_MODEL_DEFAULTS = {
       LOW: CLAUDE_FAMILY_DEFAULTS.HAIKU,
@@ -3646,7 +3668,8 @@ var init_models = __esm({
     CLAUDE_FAMILY_HIGH_VARIANTS = {
       HAIKU: `${CLAUDE_FAMILY_DEFAULTS.HAIKU}-high`,
       SONNET: `${CLAUDE_FAMILY_DEFAULTS.SONNET}-high`,
-      OPUS: `${CLAUDE_FAMILY_DEFAULTS.OPUS}-high`
+      OPUS: `${CLAUDE_FAMILY_DEFAULTS.OPUS}-high`,
+      FABLE: `${CLAUDE_FAMILY_DEFAULTS.FABLE}-high`
     };
     BUILTIN_EXTERNAL_MODEL_DEFAULTS = {
       codexModel: "gpt-5.3-codex",
@@ -4818,7 +4841,8 @@ var init_delegation_enforcer = __esm({
     FAMILY_TO_ALIAS = {
       SONNET: "sonnet",
       OPUS: "opus",
-      HAIKU: "haiku"
+      HAIKU: "haiku",
+      FABLE: "fable"
     };
   }
 });
@@ -8280,20 +8304,8 @@ async function waitForWorkerStartupEvidence(teamName, workerName, taskId, cwd, a
 }
 async function spawnV2Worker(opts) {
   const splitTarget = opts.existingWorkerPaneIds.length === 0 ? opts.leaderPaneId : opts.existingWorkerPaneIds[opts.existingWorkerPaneIds.length - 1];
-  const splitType = opts.existingWorkerPaneIds.length === 0 ? "-h" : "-v";
-  const splitResult = await tmuxExecAsync([
-    "split-window",
-    splitType,
-    "-t",
-    splitTarget,
-    "-d",
-    "-P",
-    "-F",
-    "#{pane_id}",
-    "-c",
-    opts.workerCwd ?? opts.cwd
-  ]);
-  const paneId = splitResult.stdout.split("\n")[0]?.trim();
+  const splitDirection = opts.existingWorkerPaneIds.length === 0 ? "right" : "down";
+  const paneId = await splitTeamWorkerPane(splitTarget, splitDirection, opts.workerCwd ?? opts.cwd);
   if (!paneId) {
     return { paneId: null, startupAssigned: false, startupFailureReason: "pane_id_missing" };
   }
