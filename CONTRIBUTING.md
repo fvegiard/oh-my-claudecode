@@ -57,10 +57,18 @@ Note: The repo has two main branches:
 
 ## 3. Install & Build
 
-1. **Install dependencies**:
+1. **Use the development runtime and install locked dependencies**:
    ```bash
-   npm install
+   nvm install
+   nvm use
+   npm ci
    ```
+
+   `.nvmrc` selects Node.js 24 LTS for local and Copilot development. If you do
+   not use nvm, install Node.js 24 with your preferred version manager first.
+   CI retains separate compatibility coverage for other supported Node versions.
+   The Copilot setup workflow also installs native build tools, Python, and tmux,
+   verifies SQLite, and builds the runtime without requiring provider API keys.
 
 2. **Understand the build chain** (from `package.json`):
    ```bash

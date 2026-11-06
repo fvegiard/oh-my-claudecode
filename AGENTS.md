@@ -40,6 +40,7 @@ Keep runtime marker contracts stable and non-destructive when overlays are appli
 - Reuse existing utilities and patterns first.
 - No new dependencies without an explicit request.
 - Keep diffs small and reversible.
+- Never invent or persist mock credentials in runtime configuration, environment files, MCP settings, or CI. Use an existing authenticated session or explicitly supplied secrets; report missing authentication without printing secrets. Synthetic credentials are allowed only in isolated tests with mocked network calls.
 - Run lint, typecheck, tests, and static analysis after changes.
 - Final reports must include changed files, simplifications made, and remaining risks.
 - For session-scoped state paths, resolve via `resolveSessionStatePaths()` only — branded `ReadPath`/`WritePath` are produced exclusively by that helper; ESLint `no-restricted-syntax` blocks `as ReadPath` / `as WritePath` casts outside `src/lib/worktree-paths.ts`.

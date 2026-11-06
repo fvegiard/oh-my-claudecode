@@ -6,7 +6,12 @@ node_modules/
 !.omc/skills/
 !.omc/skills/**
 .idea/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/settings.local.example.json
+!.claude/rules/
+.claude/rules/*
+!.claude/rules/credentials.md
 .gjc/
 
 # Windows reserved names (prevent accidental creation)

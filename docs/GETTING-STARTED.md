@@ -82,6 +82,146 @@ After installation, run this in Claude Code:
 | Claude Code | Must be installed |
 | Authentication | Claude Max/Pro subscription or `ANTHROPIC_API_KEY` environment variable |
 
+### Claude cloud environment and real authentication
+
+For development from this checkout, use Node.js 24 LTS from `.nvmrc`:
+
+```bash
+nvm install
+nvm use
+npm ci
+npm run build
+```
+
+Expected: `node --version` reports `v24.x`, dependency installation and the build exit with
+code 0, and the runtime/MCP entrypoints are generated under `dist/` and `bridge/`.
+This is a CLI/plugin repository; Netlify deployment settings are not needed.
+
+**Claude Code on the web:** `.claude/settings.json` runs
+`scripts/claude-cloud-setup.sh` on session startup. The script does nothing
+locally: it requires `CLAUDE_CODE_REMOTE=true` before installing dependencies or
+building. In a cloud session it selects Node.js 24 using the existing nvm when
+needed, installs the lockfile, verifies SQLite, and builds the runtime. It does
+not install Homebrew or Ruby, change global Claude settings, or write credentials.
+Node selection is exported through `CLAUDE_ENV_FILE` when invoked as a hook.
+Build outputs are session artifacts; do not commit incidental `dist/` or
+`bridge/` changes without following the repository's shipping procedure.
+
+Cloud sessions do not automatically inherit your computer's user settings or
+login. In **claude.ai/code > environment selector**, choose or edit the
+environment used for this repository. Ensure npm and Node download hosts are
+allowed if using restricted network access. For cloud threads inside a Claude
+project, repository settings hooks may not apply: configure the environment's
+setup script to run `bash scripts/claude-cloud-setup.sh` instead. A setup script
+does not persist shell exports by itself; configure Node.js 24 in that
+environment as well. See the official
+[cloud environments](https://code.claude.com/docs/en/cloud-environments) and
+[settings precedence](https://code.claude.com/docs/en/settings) documentation.
+After changing environment configuration, start a new session and check its setup
+logs for `Claude cloud setup complete`. Do not run OMC global setup on every
+cloud session to try to synchronize your computer.
+
+**Cloud limitation:** a successful build prepares the checkout; it does not
+enable OMC's plugin hooks, agents, or MCP servers in Claude's hosted session.
+Hosted cloud sessions do not load plugins installed on your computer or enabled
+by the repository's settings. Organization-managed plugin support is separate.
+For the full local OMC plugin experience, use Claude Code locally or in a
+supported environment that actually loads plugins. OAuth login does not make
+different applications expose the same tools. See the official
+[plugin installation documentation](https://code.claude.com/docs/en/plugins/install).
+
+**GitHub Copilot (separate service):**
+`.github/workflows/copilot-setup-steps.yml` installs this
+runtime, native build tools, Python, tmux, and locked dependencies, then verify
+SQLite and build the entrypoints. The file must be merged into the default
+branch before new cloud-agent sessions use it. Repository checks and builds do
+not require an Anthropic API key.
+
+For live local Claude Code use, keep your existing subscription login or supply your
+own real API key through your local environment. Never insert a mock key to
+"fix" authentication. Check whether a variable is set without displaying it:
+
+```bash
+node -e "console.log(process.env.ANTHROPIC_API_KEY ? 'ANTHROPIC_API_KEY is set (value hidden)' : 'ANTHROPIC_API_KEY is not set; use your Claude login or configure a real secret')"
+claude doctor
+```
+
+Expected: the first command reports presence only; `claude doctor` reports
+installation health. Presence does not prove that a key is valid. If a
+previously inserted dummy `ANTHROPIC_API_KEY` overrides your subscription login,
+remove that dummy from its source (shell profile, local `.env`, or Claude
+settings), then open a fresh terminal and authenticate in Claude Code. Do not
+remove a real key required by your provider.
+
+Claude's cloud service supplies its own session authentication; do not copy it
+to your computer or replace it with a dummy `ANTHROPIC_API_KEY`. If a separate
+integration needs a secret, configure it in the chosen cloud environment.
+For Copilot tasks that explicitly need live provider calls, add the real secret
+under **Settings > Environments > copilot > Environment secrets**. Do not put
+secrets in workflow YAML, commit them, or paste them into agent chat.
+
+`.claude/rules/credentials.md`, `AGENTS.md`, and
+`.github/copilot-instructions.md` prohibit fabricated runtime credentials.
+These are agent instructions, not a credential validator; isolated mocked tests
+may still use synthetic values.
+
+### Private keys for other providers
+
+For **local Claude Code**, the project-private location is
+`.claude/settings.local.json`. Claude Code reads its `env` object, and this
+repository ignores the file. The committed
+`.claude/settings.local.example.json` has an empty `env` object: no mock keys.
+See the official [environment variable settings](https://code.claude.com/docs/en/env-vars).
+Create the private file only if you do not already have one:
+
+```bash
+test -e .claude/settings.local.json || cp .claude/settings.local.example.json .claude/settings.local.json
+chmod 600 .claude/settings.local.json
+```
+
+Open that file in your editor, preserve existing settings, and add only the real
+variables required by the provider tool you use inside `env`. Common names are
+`OPENAI_API_KEY` and `GEMINI_API_KEY`; verify the exact name with your tool's
+documentation. Do not set Anthropic authentication variables merely to add
+another provider: that can interfere with your Claude subscription login.
+Restart the local Claude Code session after editing.
+
+Expected: `git check-ignore .claude/settings.local.json` prints that path, and
+the required tool receives its variable without the key appearing in output.
+This file is plaintext, not an encrypted vault. For production secrets, prefer
+your organization's secret manager and inject environment variables at launch.
+Do not ask an agent to read, print, commit, or copy this private file.
+
+For **Claude cloud**, use secrets/environment configuration in your selected
+cloud environment instead; the local file is intentionally not synchronized.
+API keys only authenticate a tool that supports that provider. Adding keys
+does not install provider CLIs, enable unsupported plugins, or make Claude Code
+an automatic multi-provider router. OMC's supported `omc ask`/`omc team`
+providers still require their own installed and authenticated CLIs.
+
+### Official Claude Desktop on Ubuntu
+
+Anthropic provides an official
+[Claude Desktop Linux beta](https://code.claude.com/docs/en/desktop-linux) for
+Ubuntu 22.04 or later and Debian 12 or later on x86_64/arm64. Ubuntu 26.10 meets
+the documented version requirement; this checkout does not verify your machine.
+Use that app rather than an unofficial clone.
+
+Download the `.deb` for your architecture using the official instructions.
+From the folder containing that downloaded package:
+
+```bash
+sudo apt install ./claude-desktop_*.deb
+```
+
+Expected: apt configures `claude-desktop`. Launch the app as your normal user,
+sign in through its own login flow, and open a **local** Code session for this
+checkout. Install the OMC plugin using Steps 1-3 above, selecting project scope
+where offered. In the Code session, confirm `/oh-my-claudecode:omc-doctor` is
+available. Do not copy cloud OAuth tokens, `~/.claude` directories, or another
+application's provider settings into Desktop. Install any additional favorite
+tools explicitly; they are not provisioned by this repository's cloud bootstrap.
+
 ### Choosing a setup scope
 
 #### Project-scoped setup (recommended)

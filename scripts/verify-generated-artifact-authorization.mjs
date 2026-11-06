@@ -79,6 +79,14 @@ function parseRepository(repository) {
   return { owner: match[1], name: match[2] };
 }
 
+function runtimeRepositoryIdentity(environment) {
+  const repository = requiredString(
+    requiredObject(environment, 'runtime environment').githubRepository,
+    'runtime GITHUB_REPOSITORY',
+  );
+  return { repository, owner: parseRepository(repository).owner };
+}
+
 function assertProtectedRepositoryMetadata(repositoryMetadata, repository, owner) {
   const metadata = requiredObject(repositoryMetadata, 'live repository metadata');
   if (requiredString(metadata.full_name, 'live repository metadata.full_name') !== repository) {
@@ -473,16 +481,17 @@ export function authorizeGeneratedArtifactPullRequest({
   now = new Date(),
 }) {
   const trustedManifest = validateAuthorizationManifest(manifest);
-  const eventData = eventIdentity(event, trustedManifest.repository, trustedManifest.owner);
-  const liveData = livePullIdentity(livePull, trustedManifest.repository);
-  assertLiveEventCoherence(eventData, liveData, trustedManifest.repository);
+  const { repository, owner } = runtimeRepositoryIdentity(environment);
+  const eventData = eventIdentity(event, repository, owner);
+  const liveData = livePullIdentity(livePull, repository);
+  assertLiveEventCoherence(eventData, liveData, repository);
   assertDefaultMainProvenance(
     environment,
     repositoryMetadata,
     runtimeCommit,
     workflowCommit,
-    trustedManifest.repository,
-    trustedManifest.owner,
+    repository,
+    owner,
   );
   assertTrustedEventBaseProvenance(environment, eventData, liveData);
 
@@ -506,6 +515,11 @@ export function authorizeGeneratedArtifactPullRequest({
       pullNumber: eventData.pullNumber,
       generatedDelta: { count: 0, sha256: null },
     };
+  }
+
+  // Inherited upstream metadata never grants generated-artifact authority to a fork.
+  if (repository !== trustedManifest.repository || owner !== trustedManifest.owner) {
+    fail('generated changes require the manifest protected repository');
   }
 
   const authorization = trustedManifest.authorizations.find(entry => entry.pullNumber === eventData.pullNumber);
@@ -660,38 +674,39 @@ export async function verifyLiveGeneratedArtifactAuthorization({
   now = new Date(),
 }) {
   const trustedManifest = validateAuthorizationManifest(manifest);
-  const eventData = eventIdentity(event, trustedManifest.repository, trustedManifest.owner);
+  const { repository, owner: repositoryOwner } = runtimeRepositoryIdentity(environment);
+  const eventData = eventIdentity(event, repository, repositoryOwner);
   const checkedOutBaseSha = readDetachedCheckoutHead(repositoryRoot);
   const api = createGitHubApiClient({ token, fetchImpl });
-  const repositoryMetadata = await api.get(apiPath(trustedManifest.repository, ''));
-  assertProtectedRepositoryMetadata(repositoryMetadata, trustedManifest.repository, trustedManifest.owner);
-  const runtimeCommit = await api.get(apiPath(trustedManifest.repository, '/commits/main'));
+  const repositoryMetadata = await api.get(apiPath(repository, ''));
+  assertProtectedRepositoryMetadata(repositoryMetadata, repository, repositoryOwner);
+  const runtimeCommit = await api.get(apiPath(repository, '/commits/main'));
   const workflowCommit = runtimeCommit;
   assertDefaultMainProvenance(
     environment,
     repositoryMetadata,
     runtimeCommit,
     workflowCommit,
-    trustedManifest.repository,
-    trustedManifest.owner,
+    repository,
+    repositoryOwner,
   );
-  const livePull = await api.get(apiPath(trustedManifest.repository, `/pulls/${eventData.pullNumber}`));
-  const liveData = livePullIdentity(livePull, trustedManifest.repository);
-  assertLiveEventCoherence(eventData, liveData, trustedManifest.repository);
+  const livePull = await api.get(apiPath(repository, `/pulls/${eventData.pullNumber}`));
+  const liveData = livePullIdentity(livePull, repository);
+  assertLiveEventCoherence(eventData, liveData, repository);
   assertTrustedEventBaseProvenance(environment, eventData, liveData);
 
-  const files = await fetchCompletePullFiles(api, trustedManifest.repository, eventData.pullNumber, liveData.changedFiles);
+  const files = await fetchCompletePullFiles(api, repository, eventData.pullNumber, liveData.changedFiles);
   // Compare is queried only for the exact base and merge-base identity. Its files
   // array is capped independently, so only fully paginated pull files are authoritative.
   const compare = await api.get(
     apiPath(
-      trustedManifest.repository,
+      repository,
       `/compare/${encodeURIComponent(liveData.baseSha)}...${encodeURIComponent(liveData.headSha)}?per_page=1&page=1`,
     ),
   );
-  const commit = await api.get(apiPath(trustedManifest.repository, `/commits/${encodeURIComponent(liveData.headSha)}`));
+  const commit = await api.get(apiPath(repository, `/commits/${encodeURIComponent(liveData.headSha)}`));
 
-  const { owner, name } = parseRepository(trustedManifest.repository);
+  const { owner, name } = parseRepository(repository);
   const graphResponse = await api.graphql(SIGNATURE_QUERY, {
     owner,
     name,
@@ -721,9 +736,9 @@ export async function verifyLiveGeneratedArtifactAuthorization({
   });
 
   // Close the observable push-race window before reporting authorization.
-  const finalLivePull = await api.get(apiPath(trustedManifest.repository, `/pulls/${eventData.pullNumber}`));
-  const finalLiveData = livePullIdentity(finalLivePull, trustedManifest.repository);
-  assertLiveEventCoherence(eventData, finalLiveData, trustedManifest.repository);
+  const finalLivePull = await api.get(apiPath(repository, `/pulls/${eventData.pullNumber}`));
+  const finalLiveData = livePullIdentity(finalLivePull, repository);
+  assertLiveEventCoherence(eventData, finalLiveData, repository);
   return decision;
 }
 
