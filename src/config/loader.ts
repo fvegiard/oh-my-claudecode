@@ -76,7 +76,8 @@ export function buildDefaultConfig(): PluginConfig {
       autoContextInjection: true,
     },
     mcpServers: {
-      exa: { enabled: true },
+      // Exa needs a key; loadConfig() enables it when EXA_API_KEY or a config-file apiKey is present.
+      exa: { enabled: false },
       context7: { enabled: true },
     },
     companyContext: {
@@ -849,6 +850,17 @@ export function loadConfig(): PluginConfig {
     config = deepMerge(config, projectConfig);
   }
 
+  // Exa defaults to disabled (it cannot work without a key). A key supplied by a
+  // config file enables it unless that file sets mcpServers.exa.enabled itself.
+  const fileExaEnabled =
+    projectConfig?.mcpServers?.exa?.enabled ?? userConfig?.mcpServers?.exa?.enabled;
+  if (fileExaEnabled === undefined && config.mcpServers?.exa?.apiKey) {
+    config.mcpServers = {
+      ...config.mcpServers,
+      exa: { ...config.mcpServers.exa, enabled: true },
+    };
+  }
+
   // Workflow profiles are atomic definitions: project replaces a same-named user
   // profile instead of deep-merging its closed fields.
   config = composeAutopilotWorkflows(config, userConfig, projectConfig);
@@ -857,6 +869,15 @@ export function loadConfig(): PluginConfig {
   // profile inputs and therefore cannot define or replace profiles.
   const envConfig = loadEnvConfig();
   config = deepMerge(config, envConfig);
+
+  // An explicit `enabled: false` in a config file wins over EXA_API_KEY, which
+  // loadEnvConfig() always turns into `enabled: true`.
+  if (fileExaEnabled === false && config.mcpServers?.exa) {
+    config.mcpServers = {
+      ...config.mcpServers,
+      exa: { ...config.mcpServers.exa, enabled: false },
+    };
+  }
 
   // Auto-enable forceInherit for non-standard providers (issues #1201, #1025)
   // Only auto-enable if user hasn't explicitly set it via config or env var.
