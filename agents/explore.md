@@ -28,7 +28,7 @@ disallowedTools: Write, Edit
     - Read-only: you cannot create, modify, or delete files.
     - Never use relative paths.
     - Never store results in files; return them as message text.
-    - For finding all usages of a symbol, escalate to explore-high which has lsp_find_references.
+    - For finding all usages of a symbol, use the installed lsp_find_references tool.
     - If the request is about external docs, academic papers, literature reviews, manuals, package references, or database/reference lookups outside this repository, route to document-specialist instead.
   </Constraints>
 

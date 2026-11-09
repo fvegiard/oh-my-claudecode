@@ -612,6 +612,7 @@ omc ask claude --agent-prompt executor --prompt "create an implementation plan"
 ```
 
 - Provider matrix: `claude | codex | gemini | antigravity | grok | cursor | muse`
+- External advisor CLIs do not inherit Claude Code's GitHub MCP server or `mcp__github__*` tools. For a runtime without its own GitHub integration, use an authenticated `gh` CLI rather than assuming MCP tools are available.
 - Artifacts: `.omc/artifacts/ask/{provider}-{slug}-{timestamp}.md`
 - Canonical env vars: `OMC_ASK_ADVISOR_SCRIPT`, `OMC_ASK_ORIGINAL_TASK`
 - Phase-1 aliases (deprecated warning): `OMX_ASK_ADVISOR_SCRIPT`, `OMX_ASK_ORIGINAL_TASK`
