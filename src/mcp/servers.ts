@@ -90,8 +90,10 @@ export function getDefaultMcpServers(options?: {
 }): McpServersConfig {
   const servers: McpServersConfig = {};
 
-  if (options?.enableExa !== false) {
-    servers.exa = createExaServer(options?.exaApiKey);
+  // Exa cannot work without a key: do not start a server that will only fail.
+  const exaApiKey = options?.exaApiKey || process.env.EXA_API_KEY;
+  if (options?.enableExa !== false && exaApiKey) {
+    servers.exa = createExaServer(exaApiKey);
   }
 
   if (options?.enableContext7 !== false) {
