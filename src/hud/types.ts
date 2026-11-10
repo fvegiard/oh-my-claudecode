@@ -45,6 +45,42 @@ export interface OmcHudState {
 // Stdin from Claude Code
 // ============================================================================
 
+/** Likely cause of the last prompt-cache miss (statusline `prompt_cache.last_miss_cause`). */
+export interface StatuslinePromptCacheMissCause {
+  /** Cause names such as tools_changed, system_prompt_changed, ttl_expired_5m, likely_server_side (not exhaustive). */
+  causes?: string[];
+  tools_added?: number;
+  tools_removed?: number;
+  system_char_delta?: number;
+}
+
+/** Statusline stdin `prompt_cache` object. Timestamps are Unix epoch seconds. */
+export interface StatuslinePromptCache {
+  warm?: boolean;
+  caching_observed?: boolean;
+  /** Documented values "5m" or "1h". */
+  ttl?: string;
+  expires_at?: number | null;
+  requests?: number;
+  misses?: number;
+  expected_rebuilds?: number;
+  /** Session cache-read share of all input tokens, 0 to 1. */
+  hit_ratio?: number | null;
+  cache_write_tokens?: number;
+  miss_recache_tokens?: number;
+  last_miss_at?: number | null;
+  last_miss_cause?: StatuslinePromptCacheMissCause | null;
+  miss_causes?: Record<string, number> | null;
+  recache_tokens_if_cold?: number | null;
+}
+
+/** Defensively parsed official prompt-cache data (wrong-typed fields dropped). */
+export interface OfficialPromptCache {
+  cache: StatuslinePromptCache;
+  /** context_window.current_usage of the latest request, when it carries cache counts. */
+  currentUsage?: PromptCacheTurn;
+}
+
 export interface StatuslineStdin {
   /** Transcript path for parsing conversation history */
   transcript_path?: string;
@@ -84,6 +120,14 @@ export interface StatuslineStdin {
       cache_read_input_tokens?: number;
     };
   };
+
+  /**
+   * Official prompt-cache statistics (Claude Code 2.1.251+; `last_miss_cause`
+   * and `miss_causes` 2.1.260+). Absent on older versions and until the main
+   * conversation's first API response. Evolving object: every field optional,
+   * unknown keys possible, so read it through `parseOfficialPromptCache`.
+   */
+  prompt_cache?: StatuslinePromptCache;
 
   /** Rate limits from Claude Code statusline stdin */
   rate_limits?: {
@@ -465,6 +509,9 @@ export interface HudRenderContext {
   /** Prompt-cache write/read counts parsed from transcript message.usage */
   promptCache?: PromptCacheUsage | null;
 
+  /** Official statusline `prompt_cache` object (Claude Code 2.1.251+), parsed; absent on older versions */
+  promptCacheOfficial?: OfficialPromptCache | null;
+
   /** Installed OMC version (e.g. "4.1.10") */
   omcVersion: string | null;
 
@@ -693,7 +740,7 @@ export interface HudElementConfig {
   showSessionDuration?: boolean;  // Show session:19m duration display (default: true if sessionHealth is true)
   showHealthIndicator?: boolean;  // Show 🟢/🟡/🔴 health indicator (default: true if sessionHealth is true)
   showTokens?: boolean;           // Show last-request token usage when enabled (tok:i1.2k/o340)
-  showPromptCache?: boolean;      // Show prompt-cache writes/reads and hit rate when enabled (cache:w1.2k/r45.0k s97%)
+  showPromptCache?: boolean;      // Show prompt-cache writes/reads and hit rate when enabled (cache:w1.2k/r45.0k s97%; with Claude Code's official prompt_cache: cache:w1.8k/r109.0k 99% miss:1 ttl:52m)
   enterpriseMode?: boolean;       // Explicit override for enterprise mode (undefined = auto-detect)
   showEnterpriseCost?: boolean;   // Whether to render enterprise billing cost (default: true when enterprise)
   useBars: boolean;           // Show visual progress bars instead of/alongside percentages

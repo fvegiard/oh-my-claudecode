@@ -455,7 +455,7 @@ export async function render(
   }
 
   if (enabledElements.showPromptCache === true) {
-    const promptCache = renderPromptCache(context.promptCache, hudLabels);
+    const promptCache = renderPromptCache(context.promptCache, hudLabels, context.promptCacheOfficial);
     if (promptCache) rendered.set("promptCache", promptCache);
   }
 
