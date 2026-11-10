@@ -42,6 +42,7 @@ Every sync keeps each row until its "Drop when" is true. A change missing from t
 |--------|-----|-----------|
 | `FORK.md` | This policy | Never |
 | `bun.lock` regenerated at the v5.8.3 sync (2026-11-09) | Upstream v5.8.3 moved `tsx` to `dependencies` and added `fast-check` in `package.json` without updating `bun.lock`, so step 3 fails on upstream's file | Upstream's own `bun.lock` passes step 3: take upstream's file |
+| `tests/integration/issue-4804-jev-context-pruning.test.ts`: shadow-mode test waits for the detached resolver's `jev-logs/shadow.jsonl` write, and teardown joins it and retries `rmSync` | The hook's detached Jev resolver writes that log after the HTTP response, so the old 100 ms sleep failed under load and teardown hit `ENOTEMPTY` once on PR #4 (2026-11-10). Not sent upstream (5-day rule) | Upstream's copy of the test waits for the resolver's final write (or the test is gone): take upstream's file |
 | `inventory/inventory-graph.json` regenerated | Covers the fork-only files (step 4) | Never: on conflict take upstream's file, then redo step 4 |
 
 ## After promoting `stable`

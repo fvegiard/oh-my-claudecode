@@ -4,9 +4,9 @@
  * The mock returns the API's real score shape: `score`, `confidence`,
  * `legend`, `probabilities`, and no `choice`.
  */
-import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -95,8 +95,10 @@ describe("jev active-mode context-pruning coverage (issue #4804)", () => {
   let status: number;
   let answer: Record<string, unknown>;
   let responseDelayMs: number;
+  let shadowCompletion: Promise<unknown> | undefined;
 
   beforeEach(async () => {
+    shadowCompletion = undefined;
     cwd = mkdtempSync(join(tmpdir(), "jev-context-pruning-"));
     requests = [];
     status = 200;
@@ -167,11 +169,16 @@ describe("jev active-mode context-pruning coverage (issue #4804)", () => {
   });
 
   afterEach(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-    rmSync(cwd, { recursive: true, force: true });
-  });
+    try {
+      // Closing the HTTP server does not join the detached resolver's log write.
+      await shadowCompletion;
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+      rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 15000);
 
   function postToolInput(toolName = "read", contextPercent = 95, sessionSuffix = "") {
     const toolResponse =
@@ -347,23 +354,35 @@ describe("jev active-mode context-pruning coverage (issue #4804)", () => {
     expect(requests).toHaveLength(0);
 
     const shadowInput = postToolInput("read", 80, "-shadow");
-    const shadow = await runScript(
+    // Retain completion for teardown even if the hook or a later assertion fails.
+    // Await immediately so a failure cannot become an unhandled rejection.
+    const shadow = await (shadowCompletion = runScript(
       "post-tool-verifier.mjs",
       shadowInput,
       { ...env, OMC_JEV: "context-pruning" },
       cwd,
-    );
+    ).finally(async () => {
+      // The resolver consumes the HTTP response before mkdir/appendFile. A
+      // complete log entry, not request arrival, signals its final file write.
+      await vi.waitFor(() => {
+        const log = readFileSync(join(cwd, "jev-logs", "shadow.jsonl"), "utf8");
+        expect(log.endsWith("\n")).toBe(true);
+        const entries = log.trim().split("\n").map((line) => JSON.parse(line));
+        expect(entries).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ point: "context-pruning", mode: "shadow" }),
+          ]),
+        );
+      }, { timeout: 10000, interval: 25 });
+    }));
 
     expect(shadow.exitCode, shadow.stderr).toBe(0);
     // Shadow mode doesn't change the output (no behavior change)
     const shadowJson = JSON.parse(shadow.stdout);
     const baselineJson = JSON.parse(baseline.stdout);
     expect(shadowJson).toEqual(baselineJson);
-    // Shadow mode should still attempt the request (in the background, may not complete immediately)
-    // Give the detached child a moment to post its request
-    await new Promise((resolve) => setTimeout(resolve, 100));
     expect(requests.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 
   it("post-tool-verifier.mjs: OMC_JEV=all:active includes context-pruning point", async () => {
     answer = scoreAnswer(3);
