@@ -5,15 +5,15 @@
   "provenance": {
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
-    "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-    "sourceSha256": "b06a96d51fe7d6deb7ce92f2e4d8bc603e7fbcac605767528ddd26b7cd4fd244",
+    "head": "db84ec0ab5adf1b3733b13da348b57a4c7fc126e",
+    "sourceSha256": "78d23631d38ebd4dc48fb4623bd9d5d9735c14e72fd6498df94169100c0ff0be",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
-  "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-  "sourceSha256": "b06a96d51fe7d6deb7ce92f2e4d8bc603e7fbcac605767528ddd26b7cd4fd244",
+  "head": "db84ec0ab5adf1b3733b13da348b57a4c7fc126e",
+  "sourceSha256": "78d23631d38ebd4dc48fb4623bd9d5d9735c14e72fd6498df94169100c0ff0be",
   "counts": {
     "public": {
       "skills": 84,
@@ -884,6 +884,7 @@
       "scripts/lib/encode-project-path.mjs",
       "scripts/lib/enforcement-log.mjs",
       "scripts/lib/force-agent-delegation-preflight.mjs",
+      "scripts/lib/hook-command-normalizer.d.mts",
       "scripts/lib/hook-command-normalizer.mjs",
       "scripts/lib/hud-cache-wrapper.sh",
       "scripts/lib/hud-wrapper-template.mjs",
@@ -896,6 +897,7 @@
       "scripts/lib/ralph-startup.mjs",
       "scripts/lib/read-budget-preflight.mjs",
       "scripts/lib/run-reaper.mjs",
+      "scripts/lib/shell-checks.mjs",
       "scripts/lib/skill-entitlements.mjs",
       "scripts/lib/state-lock.mjs",
       "scripts/lib/state-root.cjs",
@@ -7372,11 +7374,6 @@
         "id": "CONTRIBUTING.md",
         "kind": "other",
         "path": "CONTRIBUTING.md"
-      },
-      {
-        "id": "FORK.md",
-        "kind": "other",
-        "path": "FORK.md"
       },
       {
         "id": "GLOSSARY.md",
@@ -37419,6 +37416,11 @@
         "path": "scripts/lib/force-agent-delegation-preflight.mjs"
       },
       {
+        "id": "scripts/lib/hook-command-normalizer.d.mts",
+        "kind": "script",
+        "path": "scripts/lib/hook-command-normalizer.d.mts"
+      },
+      {
         "id": "scripts/lib/hook-command-normalizer.mjs",
         "kind": "script",
         "path": "scripts/lib/hook-command-normalizer.mjs"
@@ -37477,6 +37479,11 @@
         "id": "scripts/lib/run-reaper.mjs",
         "kind": "script",
         "path": "scripts/lib/run-reaper.mjs"
+      },
+      {
+        "id": "scripts/lib/shell-checks.mjs",
+        "kind": "script",
+        "path": "scripts/lib/shell-checks.mjs"
       },
       {
         "id": "scripts/lib/skill-entitlements.mjs",
@@ -48064,6 +48071,11 @@
         "path": "tests/fixtures/prompt-projection/transaction-backup-rollback.json"
       },
       {
+        "id": "tests/fixtures/shell-checks/cases.txt",
+        "kind": "other",
+        "path": "tests/fixtures/shell-checks/cases.txt"
+      },
+      {
         "id": "tests/fixtures/typescript-pnpm/package.json",
         "kind": "other",
         "path": "tests/fixtures/typescript-pnpm/package.json"
@@ -48164,6 +48176,11 @@
         "path": "tests/integration/jev-model-routing-effort.test.ts"
       },
       {
+        "id": "tests/integration/jev-model-routing-marker.test.ts",
+        "kind": "other",
+        "path": "tests/integration/jev-model-routing-marker.test.ts"
+      },
+      {
         "id": "tests/integration/multirepo-workspace.test.ts",
         "kind": "other",
         "path": "tests/integration/multirepo-workspace.test.ts"
@@ -48187,6 +48204,16 @@
         "id": "tests/integration/session-flow-skill.test.ts",
         "kind": "other",
         "path": "tests/integration/session-flow-skill.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks-hooks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks-hooks.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks.test.ts"
       },
       {
         "id": "tests/integration/skill-map-references.test.ts",
@@ -49781,6 +49808,26 @@
         "kind": "imports"
       },
       {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
         "from": "scripts/lib/state-lock.mjs",
         "to": "external:better-sqlite3",
         "kind": "imports"
@@ -50182,6 +50229,11 @@
       },
       {
         "from": "scripts/post-tool-use-failure.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-use-failure.mjs",
         "to": "scripts/lib/state-root.mjs",
         "kind": "imports"
       },
@@ -50248,6 +50300,11 @@
       {
         "from": "scripts/post-tool-verifier.mjs",
         "to": "scripts/lib/ralph-startup.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-verifier.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -50373,6 +50430,11 @@
       {
         "from": "scripts/pre-tool-enforcer.mjs",
         "to": "scripts/lib/read-budget-preflight.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/pre-tool-enforcer.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -74517,6 +74579,11 @@
       },
       {
         "from": "src/hooks/setup/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hooks/setup/index.ts",
         "to": "src/hooks/beads-context/index.ts",
         "kind": "imports"
       },
@@ -77928,6 +77995,11 @@
       {
         "from": "src/installer/index.ts",
         "to": "external:url",
+        "kind": "imports"
+      },
+      {
+        "from": "src/installer/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
         "kind": "imports"
       },
       {
@@ -91091,6 +91163,46 @@
         "kind": "imports"
       },
       {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "type-imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
         "from": "tests/integration/multirepo-workspace.test.ts",
         "to": "external:node:fs",
         "kind": "imports"
@@ -91228,6 +91340,66 @@
       {
         "from": "tests/integration/session-flow-skill.test.ts",
         "to": "src/workflow/registry.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:vitest",
         "kind": "imports"
       },
       {
@@ -92112,12 +92284,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8240,
-      "edgeCount": 8742,
-      "importEdgeCount": 7297,
+      "nodeCount": 8245,
+      "edgeCount": 8771,
+      "importEdgeCount": 7325,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "e8d894615d717d236e2b67bd7384ef03d3b904ee36aa6fec4fdfb78f835a913e",
-  "manifestSha256": "dc74601f4be0f70b43e1cf8a4f3ec7279594d6dad43f08324763ff43f5b882c5"
+  "inventorySha256": "afeb9b0fb04c9b26f3ac7f8342d242930562fc5d8edce61dbc6424976ef8b457",
+  "manifestSha256": "d9bb62495a3f62af998109902aa4707aea31eacb7a3cfcd76d0b2cee5ff84595"
 }
