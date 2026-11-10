@@ -194,6 +194,7 @@ You can manually edit the config file. Each option can be set individually - any
     "useBars": true,
     "showCallCounts": true,
     "callCountsFormat": "auto",
+    "showPromptCache": false,
     "safeMode": true,
     "maxOutputLines": 4
   },
@@ -217,6 +218,15 @@ Controls the call-count badge icon style:
 - `"auto"` (default): emoji on macOS/Linux, ASCII on Windows/WSL
 - `"emoji"`: force `🔧 🤖 ⚡`
 - `"ascii"`: force `T: A: S:`
+
+### showPromptCache
+
+Opt-in (default `false`). Shows prompt-cache activity parsed from the transcript's per-message usage:
+- `cache:w1.2k/r45.0k s97%`: tokens written to / read from the cache by the latest request, then the session hit rate (read / (read + written + uncached input))
+- `cache:w21.0k/r0 new`: first request of a session, which writes the cache by design (not a miss)
+- `cache:w48.0k/r0 MISS s83%`: the latest request wrote 4096 or more tokens and read none after the first request, so the cache was rebuilt (expired or invalidated)
+
+Nothing is shown until the transcript has usage data. Colour (green, yellow, red) is secondary; the `new` and `MISS` words carry the signal.
 
 ### safeMode
 

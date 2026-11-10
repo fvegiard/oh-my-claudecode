@@ -26,6 +26,7 @@ import type {
   TodoItem,
   PendingPermission,
   LastRequestTokenUsage,
+  PromptCacheTurn,
 } from "./types.js";
 import { classifyAgentSpawn, parseIncomingAgentWrapper } from "./agent-kind.js";
 
@@ -189,6 +190,7 @@ export async function parseTranscript(
       // Token totals from a tail-read are partial (we only saw the last MAX_TAIL_BYTES).
       // Still surface them when token data was found so the HUD shows something useful.
       sessionTotalsReliable = sessionTokenTotals.seenUsage;
+      if (result.promptCache) result.promptCache.complete = false;
     } else {
       const fileStream = createReadStream(transcriptPath);
       const rl = createInterface({
@@ -296,6 +298,13 @@ function cloneTranscriptData(result: TranscriptData): TranscriptData {
       : undefined,
     lastRequestTokenUsage: result.lastRequestTokenUsage
       ? { ...result.lastRequestTokenUsage }
+      : undefined,
+    promptCache: result.promptCache
+      ? {
+          ...result.promptCache,
+          last: { ...result.promptCache.last },
+          session: { ...result.promptCache.session },
+        }
       : undefined,
   };
 }
@@ -481,6 +490,8 @@ function processEntry(
     inputTokens: number;
     outputTokens: number;
     seenUsage: boolean;
+    /** message.id of the latest request counted into result.promptCache. */
+    lastCacheMessageId?: string;
   },
   observedSessionIds?: Set<string>,
 ): void {
@@ -497,6 +508,11 @@ function processEntry(
       sessionTokenTotals.outputTokens += usage.outputTokens;
       sessionTokenTotals.seenUsage = true;
     }
+  }
+
+  const cacheTurn = extractPromptCacheTurn(entry.message?.usage);
+  if (cacheTurn) {
+    recordPromptCacheTurn(result, cacheTurn, entry.message?.id, sessionTokenTotals);
   }
 
   // Set session start time from first entry
@@ -819,6 +835,8 @@ interface TranscriptEntry {
     // `content: "<task-notification>...</task-notification>"`).
     content?: ContentBlock[] | string;
     usage?: TranscriptUsage;
+    /** API message id; Claude Code writes one line per content block with the same id and usage. */
+    id?: string;
   };
 }
 
@@ -894,6 +912,50 @@ function extractLastRequestTokenUsage(usage: TranscriptUsage | undefined): LastR
   }
 
   return normalized;
+}
+
+function extractPromptCacheTurn(usage: TranscriptUsage | undefined): PromptCacheTurn | null {
+  if (!usage) return null;
+
+  const count = (value: unknown): number => Math.max(0, Math.round(getNumericUsageValue(value) ?? 0));
+  const fresh = count(usage.input_tokens);
+  const wrote = count(usage.cache_creation_input_tokens);
+  const hit = count(usage.cache_read_input_tokens);
+
+  // Synthetic entries (no real request) carry all-zero usage: not a turn.
+  if (fresh + wrote + hit === 0) {
+    return null;
+  }
+
+  return { inputTokens: fresh, cacheCreationTokens: wrote, cacheReadTokens: hit };
+}
+
+function recordPromptCacheTurn(
+  result: TranscriptData,
+  turn: PromptCacheTurn,
+  messageId: string | undefined,
+  state: { lastCacheMessageId?: string } | undefined,
+): void {
+  const previous = result.promptCache;
+  const sameMessage = previous != null && messageId != null && state?.lastCacheMessageId === messageId;
+
+  if (!previous) {
+    result.promptCache = { last: turn, session: { ...turn }, turns: 1, complete: true };
+  } else if (sameMessage) {
+    // Another content block of the request already counted: replace, do not add.
+    previous.session.inputTokens += turn.inputTokens - previous.last.inputTokens;
+    previous.session.cacheCreationTokens += turn.cacheCreationTokens - previous.last.cacheCreationTokens;
+    previous.session.cacheReadTokens += turn.cacheReadTokens - previous.last.cacheReadTokens;
+    previous.last = turn;
+  } else {
+    previous.session.inputTokens += turn.inputTokens;
+    previous.session.cacheCreationTokens += turn.cacheCreationTokens;
+    previous.session.cacheReadTokens += turn.cacheReadTokens;
+    previous.last = turn;
+    previous.turns += 1;
+  }
+
+  if (state) state.lastCacheMessageId = messageId;
 }
 
 function getNumericUsageValue(value: unknown): number | null {

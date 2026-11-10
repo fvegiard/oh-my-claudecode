@@ -536,6 +536,7 @@ async function mainImpl(watchMode = false, skipInit = false): Promise<void> {
       sessionHealth: await calculateSessionHealth(sessionStart, contextPercent),
       lastRequestTokenUsage: transcriptData.lastRequestTokenUsage || null,
       sessionTotalTokens: transcriptData.sessionTotalTokens ?? null,
+      promptCache: transcriptData.promptCache ?? null,
       omcVersion,
       updateAvailable,
       omcUpdateSource,

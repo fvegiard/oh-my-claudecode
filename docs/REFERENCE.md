@@ -1501,6 +1501,7 @@ Configure HUD elements in `~/.claude/settings.json`:
 | `ralph`      | Show ralph loop status                                                                                               | `true`  |
 | `autopilot`  | Show autopilot status                                                                                                | `true`  |
 | `showTokens` | Show transcript-derived token usage (`tok:i1.2k/o340`, plus `r...` reasoning and `s...` session total when reliable) | `false` |
+| `showPromptCache` | Show prompt-cache activity from transcript usage: tokens written and read by the latest request plus the session hit rate (`cache:w1.2k/r45.0k s97%`). The first request of a session reads `new`; a large write with zero reads after that reads `MISS` (cache rebuilt: expired or invalidated) | `false` |
 
 Additional `omcHud` layout and label options (top-level):
 
@@ -1511,7 +1512,7 @@ Additional `omcHud` layout and label options (top-level):
 | `locale`   | HUD label preset. Supported values: `en`, `zh-CN`                                 | `en`       |
 | `labels`   | Per-label HUD text overrides; supported keys only                                 | unset      |
 
-`locale` and `labels` affect only HUD labels. English remains the default, unsupported locale values and unknown label keys are ignored, and explicit `labels` override the locale preset. Supported label keys are `context`, `tokens`, `tool`, `agent`, `skill`, `ralph`, `background`, `thinking`, `staged`, `modified`, `untracked`, `ahead`, and `behind`.
+`locale` and `labels` affect only HUD labels. English remains the default, unsupported locale values and unknown label keys are ignored, and explicit `labels` override the locale preset. Supported label keys are `context`, `tokens`, `cache`, `tool`, `agent`, `skill`, `ralph`, `background`, `thinking`, `staged`, `modified`, `untracked`, `ahead`, and `behind`.
 
 Example:
 

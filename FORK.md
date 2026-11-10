@@ -48,6 +48,7 @@ Every sync keeps each row until its "Drop when" is true. A change missing from t
 | `.github/workflows/pr-check.yml`: `pull-requests: write` on the `size-check` job only | Upstream grants it to the whole workflow | Upstream scopes it to the job |
 | `.secret-scan-allowlist` | Hash-keyed reviewed exceptions for machine-setup's `scripts/secret-scan` (format in machine-setup `docs/secret-scan.md`) | An entry's matched bytes change: re-review that entry, never widen it |
 | Docs: `agents/explore.md` (no `explore-high`, which does not exist), `skills/ask/SKILL.md` and `docs/REFERENCE.md` (advisor CLIs do not inherit Claude Code's GitHub MCP tools) | Upstream text points at a missing agent and is silent on the MCP limit | Upstream says the same |
+| HUD prompt-cache element: `src/hud/elements/prompt-cache.ts`, `src/hud/transcript.ts`, `src/hud/render.ts`, `src/hud/types.ts` (`showPromptCache`, `cache` label, `promptCache` order), `src/hud/index.ts`, `docs/REFERENCE.md`, `skills/hud/SKILL.md` and the tests | Upstream parses `cache_creation_input_tokens` and `cache_read_input_tokens` but no element shows them, so a rebuilt cache (the expensive turn) is invisible. Opt-in `omcHud.elements.showPromptCache` | Upstream ships a prompt-cache element |
 
 Rows that change `src/` are not live on the machines yet: the plugin and the `omc` CLI run the committed `dist/`
 and `bridge/`, and this fork has no rebuild step (`npm run build`, then commit both folders). Check: after

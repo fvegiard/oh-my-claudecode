@@ -30,6 +30,7 @@ import { renderPermission } from "./elements/permission.js";
 import { renderThinking } from "./elements/thinking.js";
 import { renderSession } from "./elements/session.js";
 import { renderTokenUsage } from "./elements/token-usage.js";
+import { renderPromptCache } from "./elements/prompt-cache.js";
 import { renderEnterpriseCost } from "./elements/enterprise-cost.js";
 import { renderPromptTime } from "./elements/prompt-time.js";
 import { renderAutopilot } from "./elements/autopilot.js";
@@ -451,6 +452,11 @@ export async function render(
       hudLabels,
     );
     if (tokenUsage) rendered.set("tokens", tokenUsage);
+  }
+
+  if (enabledElements.showPromptCache === true) {
+    const promptCache = renderPromptCache(context.promptCache, hudLabels);
+    if (promptCache) rendered.set("promptCache", promptCache);
   }
 
   if (enabledElements.ralph && context.ralph) {

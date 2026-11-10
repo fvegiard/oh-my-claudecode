@@ -160,6 +160,27 @@ export interface LastRequestTokenUsage {
   reasoningTokens?: number;
 }
 
+/** Prompt-cache token counts for one API request (transcript message.usage). */
+export interface PromptCacheTurn {
+  /** Uncached input tokens (usage.input_tokens). */
+  inputTokens: number;
+  /** Tokens written to the prompt cache (usage.cache_creation_input_tokens). */
+  cacheCreationTokens: number;
+  /** Tokens read from the prompt cache (usage.cache_read_input_tokens). */
+  cacheReadTokens: number;
+}
+
+export interface PromptCacheUsage {
+  /** Latest request. */
+  last: PromptCacheTurn;
+  /** Sum over every request seen in the transcript. */
+  session: PromptCacheTurn;
+  /** Number of distinct requests seen. */
+  turns: number;
+  /** False when only the tail of a large transcript was read, so `turns` and `session` are partial. */
+  complete: boolean;
+}
+
 export interface TranscriptData {
   agents: ActiveAgent[];
   /**
@@ -176,6 +197,7 @@ export interface TranscriptData {
   thinkingState?: ThinkingState;
   lastRequestTokenUsage?: LastRequestTokenUsage;
   sessionTotalTokens?: number;
+  promptCache?: PromptCacheUsage;
   toolCallCount: number;
   agentCallCount: number;
   skillCallCount: number;
@@ -438,6 +460,9 @@ export interface HudRenderContext {
   /** Session token total (input + output) when transcript parsing is reliable enough to calculate it */
   sessionTotalTokens?: number | null;
 
+  /** Prompt-cache write/read counts parsed from transcript message.usage */
+  promptCache?: PromptCacheUsage | null;
+
   /** Installed OMC version (e.g. "4.1.10") */
   omcVersion: string | null;
 
@@ -540,6 +565,7 @@ export type HudLocale = 'en' | 'zh-CN';
 export interface HudLabels {
   context: string;
   tokens: string;
+  cache: string;
   tool: string;
   agent: string;
   skill: string;
@@ -557,6 +583,7 @@ export interface HudLabels {
 export const DEFAULT_HUD_LABELS: HudLabels = {
   context: 'ctx',
   tokens: 'tok',
+  cache: 'cache',
   tool: 'T',
   agent: 'A',
   skill: 'S',
@@ -576,6 +603,7 @@ export const HUD_LOCALE_LABELS: Record<HudLocale, HudLabels> = {
   'zh-CN': {
     context: '上下文',
     tokens: '令牌',
+    cache: '缓存',
     tool: '工具',
     agent: '智能体',
     skill: '技能',
@@ -663,6 +691,7 @@ export interface HudElementConfig {
   showSessionDuration?: boolean;  // Show session:19m duration display (default: true if sessionHealth is true)
   showHealthIndicator?: boolean;  // Show 🟢/🟡/🔴 health indicator (default: true if sessionHealth is true)
   showTokens?: boolean;           // Show last-request token usage when enabled (tok:i1.2k/o340)
+  showPromptCache?: boolean;      // Show prompt-cache writes/reads and hit rate when enabled (cache:w1.2k/r45.0k s97%)
   enterpriseMode?: boolean;       // Explicit override for enterprise mode (undefined = auto-detect)
   showEnterpriseCost?: boolean;   // Whether to render enterprise billing cost (default: true when enterprise)
   useBars: boolean;           // Show visual progress bars instead of/alongside percentages
@@ -721,7 +750,7 @@ export const DEFAULT_ELEMENT_ORDER: Required<LayoutConfig> = {
   line1: ['hostname', 'cwd', 'gitRepo', 'gitBranch', 'gitStatus', 'apiKeySource', 'account', 'profile'],
   main: [
     'omcLabel', 'model', 'effort', 'claudeLabel', 'enterpriseCost', 'rateLimits', 'customBuckets', 'permission', 'thinking',
-    'promptTime', 'session', 'tokens', 'ralph', 'autopilot', 'prd',
+    'promptTime', 'session', 'tokens', 'promptCache', 'ralph', 'autopilot', 'prd',
     'skills', 'lastSkill', 'contextBar', 'agents', 'background',
     'callCounts', 'lastTool', 'sessionSummary',
   ],
@@ -798,6 +827,7 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,  // Disabled by default for backwards compatibility
     showCallCounts: true,  // Show tool/agent/skill call counts by default (Issue #710)
     callCountsFormat: 'auto',  // Preserve platform-based emoji/ASCII defaults unless explicitly overridden
@@ -861,6 +891,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,
     showCallCounts: false,
     showLastTool: false,
@@ -906,6 +937,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,
@@ -951,6 +983,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,
@@ -996,6 +1029,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,
     showCallCounts: true,
     showLastTool: false,
@@ -1041,6 +1075,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,
