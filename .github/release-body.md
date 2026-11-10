@@ -1,50 +1,31 @@
-# oh-my-claudecode v5.7.31: let model-routing choose
+# oh-my-claudecode v5.8.3: Bug Fixes
 
 ## Release Notes
 
-Release with **1 new feature**, **11 bug fixes**, **8 other changes** across **23 merged PRs**.
+Release with **2 bug fixes**, **6 other changes** across **8 merged PRs**.
 
 ### Highlights
 
-- **feat(jev): let model-routing choose subagent effort** (#4810)
-
-### New Features
-
-- **feat(jev): let model-routing choose subagent effort** (#4810)
+- **fix(checkpoint): keep tracked files that match an ignore rule in snapshots** (#4904)
+- **fix(mcp-registry): do not write type field to Codex config (fixes #4899)** (#4903)
 
 ### Bug Fixes
 
-- **fix(jev): use the full effort range in model-routing** (#4820)
-- **fix(jev): consume active-mode answers in plugin hook scripts** (#4808)
-- **fix(ralph): exclude vitest's Start at clock from failure signatures** (#4819)
-- **fix(jev): map the context-pruning staleness score and keep CRITICAL at the threshold** (#4818)
-- **fix(jev): extract primitive heuristics for comparability - Fixes #4806** (#4809)
-- **fix(hooks): don't flag a run awaiting confirmation as crashed** (#4799)
-- **fix(hooks): correct Jev context-pruning answer gate and mapping (issue #4804)** (#4807)
-- **fix(ralph): stop fingerprinting pytest progress dots as failures** (#4800)
-- **fix(ralph): normalize pytest (m:ss) durations in feedback signatures** (#4801)
-- **fix(ralph): exclude pytest all-pass summaries from failure signatures** (#4802)
-- **fix(hooks): keep the plugin and standalone helper copies identical** (#4784)
-
-### Documentation
-
-- **docs(migration): document the team entry-point exports removed with the bridge**
-- **docs(team): drop skill guidance that calls the removed bridge APIs**
+- **fix(checkpoint): keep tracked files that match an ignore rule in snapshots** (#4904)
+- **fix(mcp-registry): do not write type field to Codex config (fixes #4899)** (#4903)
 
 ### Other Changes
 
-- **chore(auth): authorize generated artifacts for main→dev sync #4792** (#4793)
-- **chore(sync): rebuild generated artifacts and inventory after main→dev merge**
-- **chore(auth): move the team bridge removal authorization from #4758 to #4788** (#4789)
-- **chore(auth): re-pin the #4758 authorization after merging dev** (#4787)
-- **chore(inventory): regenerate after merging dev**
-- **chore(auth): authorize generated artifacts for #4758 (team bridge removal)** (#4786)
-- **chore: remove build outputs of the deleted team bridge modules**
-- **chore(team): remove the MCP team bridge that nothing spawns**
+- **ci: repin sync PR #4907 authorization to signed head 11190730**
+- **chore(sync): leave base-owned authorization file to dev**
+- **ci: repin sync PR #4907 authorization to 672baa2c**
+- **ci: retrigger checks after authorization PR merge**
+- **ci: authorize generated artifacts for sync PR #4907 at edc27e05e**
+- **chore(inventory): regenerate after #4903** (#4905)
 
 ### Stats
 
-- **23 PRs merged** | **1 new feature** | **11 bug fixes** | **0 security/hardening improvements** | **8 other changes**
+- **8 PRs merged** | **0 new features** | **2 bug fixes** | **0 security/hardening improvements** | **6 other changes**
 
 ### Install / Update
 
@@ -53,7 +34,7 @@ The npm CLI and the Claude Code marketplace/plugin are separate install tracks, 
 **CLI / runtime:**
 
 ```bash
-npm install -g oh-my-claude-sisyphus@5.7.31
+npm install -g oh-my-claude-sisyphus@5.8.3
 ```
 
 **Claude Code plugin:**
@@ -62,4 +43,4 @@ npm install -g oh-my-claude-sisyphus@5.7.31
 /plugin marketplace update omc
 ```
 
-**Full Changelog**: https://github.com/Yeachan-Heo/oh-my-claudecode/compare/v5.7.30...v5.7.31
+**Full Changelog**: https://github.com/Yeachan-Heo/oh-my-claudecode/compare/v5.8.2...v5.8.3
