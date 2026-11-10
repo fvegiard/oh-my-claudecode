@@ -171,7 +171,7 @@ describe("jev active-mode context-pruning coverage (issue #4804)", () => {
   afterEach(async () => {
     try {
       // Closing the HTTP server does not join the detached resolver's log write.
-      await shadowCompletion;
+      await shadowCompletion?.catch(() => {});
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
@@ -354,29 +354,31 @@ describe("jev active-mode context-pruning coverage (issue #4804)", () => {
     expect(requests).toHaveLength(0);
 
     const shadowInput = postToolInput("read", 80, "-shadow");
-    // Retain completion for teardown even if the hook or a later assertion fails.
-    // Await immediately so a failure cannot become an unhandled rejection.
-    const shadow = await (shadowCompletion = runScript(
+    // Retain and immediately await completion for teardown.
+    const { shadow, entry } = await (shadowCompletion = runScript(
       "post-tool-verifier.mjs",
       shadowInput,
       { ...env, OMC_JEV: "context-pruning" },
       cwd,
-    ).finally(async () => {
-      // The resolver consumes the HTTP response before mkdir/appendFile. A
-      // complete log entry, not request arrival, signals its final file write.
-      await vi.waitFor(() => {
+    ).then(async (shadow) => {
+      if (shadow.exitCode !== 0) return { shadow, entry: undefined };
+      // Either terminal mode signals the resolver's final log write.
+      const entry = await vi.waitFor(() => {
         const log = readFileSync(join(cwd, "jev-logs", "shadow.jsonl"), "utf8");
         expect(log.endsWith("\n")).toBe(true);
         const entries = log.trim().split("\n").map((line) => JSON.parse(line));
-        expect(entries).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({ point: "context-pruning", mode: "shadow" }),
-          ]),
+        const entry = entries.find((entry) =>
+          entry.point === "context-pruning" &&
+          (entry.mode === "shadow" || entry.mode === "degraded"),
         );
+        expect(entry).toBeDefined();
+        return entry;
       }, { timeout: 10000, interval: 25 });
+      return { shadow, entry };
     }));
 
     expect(shadow.exitCode, shadow.stderr).toBe(0);
+    expect(entry).toMatchObject({ mode: "shadow" });
     // Shadow mode doesn't change the output (no behavior change)
     const shadowJson = JSON.parse(shadow.stdout);
     const baselineJson = JSON.parse(baseline.stdout);
