@@ -21,6 +21,10 @@ fails on every PR in this fork whatever the diff (PRs #1 and #2 changed only thi
 `scripts/verify-generated-artifact-authorization.mjs` hardcodes `OWNER = 'Yeachan-Heo'` and upstream's owner-signed
 manifest. No upstream run exists to compare it with.
 
+## Last sync
+Upstream v5.8.4 (`b93059fb7`) plus 2 commits, merged as `cd1846b39` on 2026-11-10 (`upstream/main` and `origin/main` equal at that SHA).
+The branch is still named `fork/sync-upstream-v5.8.3` because it was pushed and under review before v5.8.4 existed.
+
 ## Syncing with upstream
 1. `gh repo sync fvegiard/oh-my-claudecode -b main`, then `git fetch --all` and check that
    `git rev-parse origin/main upstream/main` prints one SHA twice.
@@ -41,7 +45,7 @@ Every sync keeps each row until its "Drop when" is true. A change missing from t
 | Change | Why | Drop when |
 |--------|-----|-----------|
 | `FORK.md` | This policy | Never |
-| `bun.lock` regenerated at the v5.8.3 sync (2026-11-09) | Upstream v5.8.3 moved `tsx` to `dependencies` and added `fast-check` in `package.json` without updating `bun.lock`, so step 3 fails on upstream's file | Upstream's own `bun.lock` passes step 3: take upstream's file |
+| `bun.lock` regenerated at the v5.8.3 sync (2026-11-09), kept at the v5.8.4 sync (2026-11-10) | Upstream v5.8.3 moved `tsx` to `dependencies` and added `fast-check` in `package.json` without updating `bun.lock`, so step 3 fails on upstream's file; still true at upstream `cd1846b39` (v5.8.4 + 2 commits: `tsx is in different dependency groups`) | Upstream's own `bun.lock` passes step 3: take upstream's file |
 | `inventory/inventory-graph.json` regenerated | Covers the fork-only files (step 4) | Never: on conflict take upstream's file, then redo step 4 |
 
 ## After promoting `stable`
