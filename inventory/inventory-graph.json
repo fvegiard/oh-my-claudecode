@@ -5,15 +5,15 @@
   "provenance": {
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
-    "head": "1e83ed443b38e1f34b7e8bb558c6b578263098fd",
-    "sourceSha256": "cae843d95ab343bbad57778fc5fc3d8f41522521c347fa9e22b721841a408885",
+    "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
+    "sourceSha256": "83b98f22621b80e790c15f1ccd9cfd30d4606721000188c9a81c7a6557fa520f",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
-  "head": "1e83ed443b38e1f34b7e8bb558c6b578263098fd",
-  "sourceSha256": "cae843d95ab343bbad57778fc5fc3d8f41522521c347fa9e22b721841a408885",
+  "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
+  "sourceSha256": "83b98f22621b80e790c15f1ccd9cfd30d4606721000188c9a81c7a6557fa520f",
   "counts": {
     "public": {
       "skills": 84,
@@ -884,6 +884,7 @@
       "scripts/lib/encode-project-path.mjs",
       "scripts/lib/enforcement-log.mjs",
       "scripts/lib/force-agent-delegation-preflight.mjs",
+      "scripts/lib/hook-command-normalizer.d.mts",
       "scripts/lib/hook-command-normalizer.mjs",
       "scripts/lib/hud-cache-wrapper.sh",
       "scripts/lib/hud-wrapper-template.mjs",
@@ -896,6 +897,7 @@
       "scripts/lib/ralph-startup.mjs",
       "scripts/lib/read-budget-preflight.mjs",
       "scripts/lib/run-reaper.mjs",
+      "scripts/lib/shell-checks.mjs",
       "scripts/lib/skill-entitlements.mjs",
       "scripts/lib/state-lock.mjs",
       "scripts/lib/state-root.cjs",
@@ -37419,6 +37421,11 @@
         "path": "scripts/lib/force-agent-delegation-preflight.mjs"
       },
       {
+        "id": "scripts/lib/hook-command-normalizer.d.mts",
+        "kind": "script",
+        "path": "scripts/lib/hook-command-normalizer.d.mts"
+      },
+      {
         "id": "scripts/lib/hook-command-normalizer.mjs",
         "kind": "script",
         "path": "scripts/lib/hook-command-normalizer.mjs"
@@ -37477,6 +37484,11 @@
         "id": "scripts/lib/run-reaper.mjs",
         "kind": "script",
         "path": "scripts/lib/run-reaper.mjs"
+      },
+      {
+        "id": "scripts/lib/shell-checks.mjs",
+        "kind": "script",
+        "path": "scripts/lib/shell-checks.mjs"
       },
       {
         "id": "scripts/lib/skill-entitlements.mjs",
@@ -48064,6 +48076,11 @@
         "path": "tests/fixtures/prompt-projection/transaction-backup-rollback.json"
       },
       {
+        "id": "tests/fixtures/shell-checks/cases.txt",
+        "kind": "other",
+        "path": "tests/fixtures/shell-checks/cases.txt"
+      },
+      {
         "id": "tests/fixtures/typescript-pnpm/package.json",
         "kind": "other",
         "path": "tests/fixtures/typescript-pnpm/package.json"
@@ -48164,6 +48181,11 @@
         "path": "tests/integration/jev-model-routing-effort.test.ts"
       },
       {
+        "id": "tests/integration/jev-model-routing-marker.test.ts",
+        "kind": "other",
+        "path": "tests/integration/jev-model-routing-marker.test.ts"
+      },
+      {
         "id": "tests/integration/multirepo-workspace.test.ts",
         "kind": "other",
         "path": "tests/integration/multirepo-workspace.test.ts"
@@ -48187,6 +48209,16 @@
         "id": "tests/integration/session-flow-skill.test.ts",
         "kind": "other",
         "path": "tests/integration/session-flow-skill.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks-hooks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks-hooks.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks.test.ts"
       },
       {
         "id": "tests/integration/skill-map-references.test.ts",
@@ -49781,6 +49813,26 @@
         "kind": "imports"
       },
       {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
         "from": "scripts/lib/state-lock.mjs",
         "to": "external:better-sqlite3",
         "kind": "imports"
@@ -50182,6 +50234,11 @@
       },
       {
         "from": "scripts/post-tool-use-failure.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-use-failure.mjs",
         "to": "scripts/lib/state-root.mjs",
         "kind": "imports"
       },
@@ -50248,6 +50305,11 @@
       {
         "from": "scripts/post-tool-verifier.mjs",
         "to": "scripts/lib/ralph-startup.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-verifier.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -50373,6 +50435,11 @@
       {
         "from": "scripts/pre-tool-enforcer.mjs",
         "to": "scripts/lib/read-budget-preflight.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/pre-tool-enforcer.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -74517,6 +74584,11 @@
       },
       {
         "from": "src/hooks/setup/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hooks/setup/index.ts",
         "to": "src/hooks/beads-context/index.ts",
         "kind": "imports"
       },
@@ -77928,6 +78000,11 @@
       {
         "from": "src/installer/index.ts",
         "to": "external:url",
+        "kind": "imports"
+      },
+      {
+        "from": "src/installer/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
         "kind": "imports"
       },
       {
@@ -91091,6 +91168,46 @@
         "kind": "imports"
       },
       {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "type-imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
         "from": "tests/integration/multirepo-workspace.test.ts",
         "to": "external:node:fs",
         "kind": "imports"
@@ -91228,6 +91345,66 @@
       {
         "from": "tests/integration/session-flow-skill.test.ts",
         "to": "src/workflow/registry.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:vitest",
         "kind": "imports"
       },
       {
@@ -92112,12 +92289,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8240,
-      "edgeCount": 8742,
-      "importEdgeCount": 7297,
+      "nodeCount": 8246,
+      "edgeCount": 8771,
+      "importEdgeCount": 7325,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "e8d894615d717d236e2b67bd7384ef03d3b904ee36aa6fec4fdfb78f835a913e",
-  "manifestSha256": "2c6436ccd1a737a9e9c881dd583e940d40a80d9f1650423e5d2fd21d68957d64"
+  "inventorySha256": "4d104b83e76ebcd806ffe143b5e535dfe8d0fa7cd84e586dd0bcdf06eff54863",
+  "manifestSha256": "370c3c7afcc3a73c5080f9744be54cc28da6b48ed1c632755707ba432c9b319c"
 }
