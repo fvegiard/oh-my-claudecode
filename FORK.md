@@ -5,7 +5,7 @@ Upstream: https://github.com/Yeachan-Heo/oh-my-claudecode. This fork is what Fra
 ## Branches
 | Branch | What it holds | Who moves it |
 |--------|---------------|--------------|
-| `main` | Mirror upstream `main` by fast-forward only; commit to a `fork/*` or `fix/*` branch for `dev` instead. Checked 2026-11-08: fork `0564555b63df`, upstream `19e6daa3647e`; sync is pending. | `gh repo sync fvegiard/oh-my-claudecode -b main` |
+| `main` | Exact mirror of upstream `main`, fast-forward only, never committed to (commit to a `fork/*` or `fix/*` branch for `dev` instead) | `gh repo sync fvegiard/oh-my-claudecode -b main` |
 | `dev` | `main` plus this fork's changes; every change lands here by PR, upstream CI (`CI`, `Upgrade Test`) runs on it | PRs from `fork/*` or `fix/*` branches; merge `main` into it after each sync |
 | `stable` | What the machines install: `claude plugin marketplace add "https://github.com/fvegiard/oh-my-claudecode.git#stable"` | PR `dev` → `stable` once the 5-day rule below is met. `CI` and `Upgrade Test` do not trigger on `stable` (their push and PR filters are `[main, dev]`), so the gate is the `dev` runs of those 5 days (`gh run list -R fvegiard/oh-my-claudecode -b dev -w CI -L 20`, same with `-w "Upgrade Test"`), not a check on that PR |
 
@@ -43,6 +43,11 @@ Every sync keeps each row until its "Drop when" is true. A change missing from t
 | `FORK.md` | This policy | Never |
 | `bun.lock` regenerated at the v5.8.3 sync (2026-11-09) | Upstream v5.8.3 moved `tsx` to `dependencies` and added `fast-check` in `package.json` without updating `bun.lock`, so step 3 fails on upstream's file | Upstream's own `bun.lock` passes step 3: take upstream's file |
 | `inventory/inventory-graph.json` regenerated | Covers the fork-only files (step 4) | Never: on conflict take upstream's file, then redo step 4 |
+| Exa MCP server off without a key: `src/config/loader.ts`, `src/mcp/servers.ts` and their tests | Upstream defaults `mcpServers.exa.enabled` to `true` and starts the server with no key, which can only fail. Here a key (`EXA_API_KEY` or a config-file `apiKey`) enables it and a config-file `enabled: false` wins | Upstream gates Exa on a key itself |
+| `omc config` redaction: `src/cli/config-display.ts`, `src/cli/index.ts` and its test | Upstream prints the loaded config unredacted. Here sensitive values are redacted and missing credentials are warned about | Upstream redacts `omc config` output itself |
+| `.github/workflows/pr-check.yml`: `pull-requests: write` on the `size-check` job only | Upstream grants it to the whole workflow | Upstream scopes it to the job |
+| `.secret-scan-allowlist` | Hash-keyed reviewed exceptions for machine-setup's `scripts/secret-scan` (format in machine-setup `docs/secret-scan.md`) | An entry's matched bytes change: re-review that entry, never widen it |
+| Docs: `agents/explore.md` (no `explore-high`, which does not exist), `skills/ask/SKILL.md` and `docs/REFERENCE.md` (advisor CLIs do not inherit Claude Code's GitHub MCP tools) | Upstream text points at a missing agent and is silent on the MCP limit | Upstream says the same |
 
 ## After promoting `stable`
 On each machine, and again inside each `claude-env <name>` (it has its own plugin and clone), in this order:
