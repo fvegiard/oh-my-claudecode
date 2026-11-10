@@ -16,6 +16,11 @@ function nonNegative(value: unknown): number | undefined {
   return n !== undefined && n >= 0 ? n : undefined;
 }
 
+/** A count: a non-negative integer a counter can hold exactly. */
+function safeCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -40,11 +45,11 @@ export function parseOfficialPromptCache(stdin: unknown): OfficialPromptCache | 
     if (typeof raw.ttl === 'string') cache.ttl = raw.ttl;
     const expiresAt = nonNegative(raw.expires_at);
     if (expiresAt !== undefined) cache.expires_at = expiresAt;
-    const requests = nonNegative(raw.requests);
+    const requests = safeCount(raw.requests);
     if (requests !== undefined) cache.requests = requests;
-    const misses = nonNegative(raw.misses);
+    const misses = safeCount(raw.misses);
     if (misses !== undefined) cache.misses = misses;
-    const rebuilds = nonNegative(raw.expected_rebuilds);
+    const rebuilds = safeCount(raw.expected_rebuilds);
     if (rebuilds !== undefined) cache.expected_rebuilds = rebuilds;
     const ratio = finiteNumber(raw.hit_ratio);
     if (ratio !== undefined && ratio >= 0 && ratio <= 1) cache.hit_ratio = ratio;

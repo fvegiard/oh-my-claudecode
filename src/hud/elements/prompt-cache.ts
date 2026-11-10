@@ -12,12 +12,16 @@
  *                                            (only when > 0), time to expiry
  *   cache:COLD rebuild~109.0k 99% miss:1     cold: not warm, or expires_at passed
  *   cache:w48.0k/r0 MISS(server) 99% miss:2 ttl:59m   latest request rebuilt the cache
+ *   cache:w30.0k/r15.0k rebuild 97% miss:1 ttl:59m    big write, collapsed read, but Claude Code
+ *                                            reports no recent miss (compaction or cleared
+ *                                            tool results: an expected rebuild, yellow)
  *
  * Official numbers: hit ratio, misses, expiry, rebuild-if-cold, miss cause, and
  * the latest request write/read when read from context_window.current_usage.
- * Derived numbers: the MISS marker (write >= 4096 and a collapsed read), the
- * ttl countdown (expires_at minus now), and counts taken from the transcript
- * when current_usage has none.
+ * Derived numbers: the MISS / rebuild marker (write >= 4096 and a collapsed
+ * read; MISS only when the official miss data agrees), the ttl countdown
+ * (expires_at minus now, bounded by the declared ttl), and counts taken from
+ * the transcript when current_usage has none.
  *
  * Transcript fallback format:
  *   cache:w1.2k/r45.0k s97%      (hit or partial)
@@ -66,6 +70,44 @@ export { parseOfficialPromptCache };
 /** Official last_miss_at counts as "the latest request" for the cause suffix within this many seconds. */
 const RECENT_MISS_WINDOW_SECONDS = 120;
 
+/** Documented `prompt_cache.ttl` values in seconds. */
+const TTL_SECONDS: Record<string, number> = { '5m': 300, '1h': 3600 };
+
+/** Largest documented TTL, the bound used when `ttl` is absent or unrecognised. */
+const MAX_TTL_SECONDS = 3600;
+
+/**
+ * Seconds left on the cache, or null when unknown. The value is clamped to the
+ * declared TTL (a local clock behind Claude Code's would otherwise show more
+ * than the TTL) and a value over twice the TTL (clock skew, or an expires_at
+ * sent in milliseconds) is treated as unknown.
+ */
+function remainingSecondsOf(cache: StatuslinePromptCache, nowSeconds: number): number | null {
+  if (cache.expires_at === undefined || cache.expires_at === null) return null;
+  const remaining = cache.expires_at - nowSeconds;
+  if (!Number.isFinite(remaining)) return null;
+  const ttl = (cache.ttl !== undefined ? TTL_SECONDS[cache.ttl] : undefined) ?? MAX_TTL_SECONDS;
+  if (remaining > 2 * ttl) return null;
+  return Math.min(remaining, ttl);
+}
+
+/** True when the official data carries miss information, so its silence about a miss is meaningful. */
+function hasOfficialMissData(cache: StatuslinePromptCache): boolean {
+  return (
+    (cache.misses !== undefined && cache.misses !== null) ||
+    (cache.last_miss_at !== undefined && cache.last_miss_at !== null)
+  );
+}
+
+/** True when Claude Code's latest miss is recent enough to be the latest request. */
+function officialMissIsRecent(cache: StatuslinePromptCache, nowSeconds: number): boolean {
+  return (
+    cache.last_miss_at !== undefined &&
+    cache.last_miss_at !== null &&
+    nowSeconds - cache.last_miss_at <= RECENT_MISS_WINDOW_SECONDS
+  );
+}
+
 /** Short lower-case word for each documented miss cause. */
 const MISS_CAUSE_WORDS: Record<string, string> = {
   tools_changed: 'tools',
@@ -80,6 +122,7 @@ const MAX_CAUSE_WORDS = 2;
 
 /** Time left on the cache: `<1m`, `Nm` under an hour, `NhMMm` from an hour. Minutes are floored. */
 export function formatCacheTtl(remainingSeconds: number): string {
+  if (!Number.isFinite(remainingSeconds)) return '';
   const seconds = Math.floor(remainingSeconds);
   if (seconds < 60) return '<1m';
   const totalMinutes = Math.floor(seconds / 60);
@@ -120,11 +163,13 @@ function renderOfficialPromptCache(
   const nowSeconds = now / 1000;
   const parts: string[] = [];
 
+  // Floor, so 100% means every input token was read from the cache.
   const percent =
-    cache.hit_ratio !== undefined && cache.hit_ratio !== null ? `${Math.round(cache.hit_ratio * 100)}%` : null;
+    cache.hit_ratio !== undefined && cache.hit_ratio !== null
+      ? `${Math.min(100, Math.floor(cache.hit_ratio * 100 + 1e-9))}%`
+      : null;
   const misses = cache.misses !== undefined && cache.misses > 0 ? yellow(`miss:${cache.misses}`) : null;
-  const remaining =
-    cache.expires_at !== undefined && cache.expires_at !== null ? cache.expires_at - nowSeconds : null;
+  const remaining = remainingSecondsOf(cache, nowSeconds);
 
   // Cold: Claude Code says so, or the reported expiry has passed. The next request re-caches the prompt.
   if (cache.warm === false || (remaining !== null && remaining <= 0)) {
@@ -174,8 +219,15 @@ function renderOfficialPromptCache(
       head = yellow(counts);
       marker = 'new';
     } else if (readCollapsed && last.cacheCreationTokens >= PROMPT_CACHE_MISS_MIN_WRITE_TOKENS) {
-      head = red(counts);
-      marker = red(`MISS${missCauseSuffix(cache, nowSeconds)}`);
+      // Claude Code counts compactions and cleared tool results as expected rebuilds, not misses:
+      // when its miss data says nothing recent, the rebuild is neutral, not a red MISS.
+      if (hasOfficialMissData(cache) && !officialMissIsRecent(cache, nowSeconds)) {
+        head = yellow(counts);
+        marker = yellow('rebuild');
+      } else {
+        head = red(counts);
+        marker = red(`MISS${missCauseSuffix(cache, nowSeconds)}`);
+      }
     } else {
       const lastRate = hitRate(last.cacheReadTokens, last.cacheCreationTokens, last.inputTokens);
       head = lastRate >= HIT_RATE_THRESHOLD ? green(counts) : yellow(counts);
@@ -186,7 +238,10 @@ function renderOfficialPromptCache(
   if (marker) parts.push(marker);
   if (percent) parts.push(percent);
   if (misses) parts.push(misses);
-  if (remaining !== null) parts.push(`ttl:${formatCacheTtl(remaining)}`);
+  if (remaining !== null) {
+    const ttl = formatCacheTtl(remaining);
+    if (ttl) parts.push(`ttl:${ttl}`);
+  }
 
   // Without any count the head is a bare label: attach the first value so the segment reads cache:99%.
   if (!last) {

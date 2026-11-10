@@ -123,6 +123,62 @@ describe('parseOfficialPromptCache', () => {
   });
 });
 
+describe('parseOfficialPromptCache counters (PC-3)', () => {
+  it('keeps only safe non-negative integers for requests, misses and expected_rebuilds', () => {
+    const parsed = officialOf({ requests: 1.5, misses: 1e21, expected_rebuilds: -1 });
+    expect(parsed?.cache.requests).toBeUndefined();
+    expect(parsed?.cache.misses).toBeUndefined();
+    expect(parsed?.cache.expected_rebuilds).toBeUndefined();
+    const ok = officialOf({ requests: 308, misses: 0, expected_rebuilds: 2 });
+    expect(ok?.cache).toMatchObject({ requests: 308, misses: 0, expected_rebuilds: 2 });
+    expect(officialOf({ misses: Number.MAX_SAFE_INTEGER })?.cache.misses).toBe(Number.MAX_SAFE_INTEGER);
+    expect(officialOf({ misses: Number.MAX_SAFE_INTEGER + 2 })?.cache.misses).toBeUndefined();
+  });
+
+  it('never prints a fractional or exponent miss count', () => {
+    for (const misses of [1.5, 1e21]) {
+      const out = strip(renderPromptCache(null, undefined, officialOf({ misses }), NOW_MS));
+      expect(out).not.toMatch(/miss:/);
+    }
+  });
+
+  it('floors the hit ratio so 100% means 100%', () => {
+    expect(strip(renderPromptCache(null, undefined, officialOf({ hit_ratio: 0.996 }), NOW_MS))).toContain(' 99% ');
+    expect(strip(renderPromptCache(null, undefined, officialOf({ hit_ratio: 1 }), NOW_MS))).toContain(' 100% ');
+    expect(strip(renderPromptCache(null, undefined, officialOf({ hit_ratio: 0.29 }), NOW_MS))).toContain(' 29% ');
+  });
+
+  it('formatCacheTtl returns an empty string for non-finite input', () => {
+    expect(formatCacheTtl(Number.NaN)).toBe('');
+    expect(formatCacheTtl(Number.POSITIVE_INFINITY)).toBe('');
+    expect(formatCacheTtl(Number.NEGATIVE_INFINITY)).toBe('');
+  });
+});
+
+describe('ttl countdown bounds (PC-2)', () => {
+  const expiresAt = 1794291312;
+  const ttlOf = (overrides: Record<string, unknown>, nowSeconds: number) =>
+    strip(renderPromptCache(null, undefined, officialOf(overrides), nowSeconds * 1000));
+
+  it('clamps to the declared ttl when the local clock runs behind', () => {
+    expect(ttlOf({ ttl: '1h' }, expiresAt - 7200)).toContain('ttl:1h00m');
+    expect(ttlOf({ ttl: '5m' }, expiresAt - 600)).toContain('ttl:5m');
+    expect(ttlOf({ ttl: '5m' }, expiresAt - 200)).toContain('ttl:3m');
+  });
+
+  it('drops the countdown when the remaining time is more than twice the ttl', () => {
+    expect(ttlOf({ ttl: '1h' }, expiresAt - 7201)).not.toContain('ttl:');
+    expect(ttlOf({ ttl: '5m' }, expiresAt - 601)).not.toContain('ttl:');
+    expect(ttlOf({ ttl: '1h', expires_at: expiresAt * 1000 }, expiresAt)).not.toMatch(/ttl:|NaN|Infinity/);
+  });
+
+  it('bounds an unknown or absent ttl by the largest documented one', () => {
+    expect(ttlOf({ ttl: undefined }, expiresAt - 5000)).toContain('ttl:1h00m');
+    expect(ttlOf({ ttl: '24h' }, expiresAt - 7200)).toContain('ttl:1h00m');
+    expect(ttlOf({ ttl: undefined }, expiresAt - 7201)).not.toContain('ttl:');
+  });
+});
+
 describe('formatCacheTtl boundaries', () => {
   it.each([
     [59, '<1m'],
@@ -197,15 +253,47 @@ describe('renderPromptCache with the official prompt_cache', () => {
     expect(out).toBe('cache:w745.7k/r33.6k MISS(server) 99% miss:2 ttl:56m');
   });
 
-  it('keeps MISS but drops the cause when the miss is older than 120 s', () => {
+  it('shows MISS with its cause up to 120 s after the official miss, then a neutral rebuild', () => {
     const current = { input: 1, cache_creation_input_tokens: 48_000, cache_read_input_tokens: 0 };
     const at = (ageSeconds: number) =>
       strip(
         renderPromptCache(null, undefined, officialOf({ last_miss_at: NOW_MS / 1000 - ageSeconds }, current), NOW_MS),
       );
     expect(at(120)).toContain('MISS(server)');
-    expect(at(121)).toContain('MISS ');
-    expect(at(121)).not.toContain('(server)');
+    expect(at(121)).toContain(' rebuild ');
+    expect(at(121)).not.toContain('MISS');
+  });
+
+  it('keeps MISS for an official object with no miss data at all', () => {
+    const current = { input: 1, cache_creation_input_tokens: 48_000, cache_read_input_tokens: 0 };
+    const out = strip(
+      renderPromptCache(
+        null,
+        undefined,
+        officialOf({ misses: undefined, last_miss_at: undefined, last_miss_cause: undefined }, current),
+        NOW_MS,
+      ),
+    );
+    expect(out).toContain(' MISS ');
+  });
+
+  it('PC-1: a compaction rebuild (expected_rebuilds up, last miss 83 min old, recache null) is a yellow rebuild, not a red MISS', () => {
+    const official = officialOf(
+      { requests: 120, misses: 1, expected_rebuilds: 2, last_miss_at: NOW_MS / 1000 - 5000, recache_tokens_if_cold: null },
+      { input: 1, cache_creation_input_tokens: 30_000, cache_read_input_tokens: 15_000 },
+    );
+    const coloured = renderPromptCache(transcriptUsage({ input: 1, write: 30_000, read: 15_000 }, 120, 798_000), undefined, official, NOW_MS) ?? '';
+    expect(strip(coloured)).toBe('cache:w30.0k/r15.0k rebuild 99% miss:1 ttl:56m');
+    expect(strip(coloured)).not.toContain('MISS');
+    expect(coloured).not.toContain('\x1b[31m');
+  });
+
+  it('PC-1: an official misses:0 with a null last_miss_at also gives a rebuild, not MISS', () => {
+    const official = officialOf(
+      { misses: 0, last_miss_at: null, last_miss_cause: null },
+      { input: 1, cache_creation_input_tokens: 48_000, cache_read_input_tokens: 0 },
+    );
+    expect(strip(renderPromptCache(null, undefined, official, NOW_MS))).toBe('cache:w48.0k/r0 rebuild 99% ttl:56m');
   });
 
   it('maps every documented cause and strips likely_ from unknown ones', () => {
@@ -263,7 +351,10 @@ describe('renderPromptCache with the official prompt_cache', () => {
   it('treats a transcript one request behind the stdin as the previous request', () => {
     // stdin: w60000 r40000 against a previous prompt of 100003 (transcript last): collapsed read, big write.
     const transcript = transcriptUsage({ input: 3, write: 0, read: 100_000 }, 5, 90_000);
-    const official = officialOf({}, { input: 1, cache_creation_input_tokens: 60_000, cache_read_input_tokens: 40_000 });
+    const official = officialOf(
+      { last_miss_at: NOW_MS / 1000 - 3 },
+      { input: 1, cache_creation_input_tokens: 60_000, cache_read_input_tokens: 40_000 },
+    );
     expect(strip(renderPromptCache(transcript, undefined, official, NOW_MS))).toContain('MISS');
   });
 

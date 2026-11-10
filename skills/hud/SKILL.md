@@ -224,19 +224,20 @@ Controls the call-count badge icon style:
 Opt-in (default `false`). Shows prompt-cache activity. With Claude Code 2.1.251 or later the statusline stdin carries an official `prompt_cache` object and the element uses it; without it (older Claude Code, `caching_observed: false`, or nothing usable in it) the element falls back to the transcript's per-message usage.
 
 Official `prompt_cache` format (colour is secondary; the words carry the signal):
-- `cache:w1.8k/r109.0k 99% miss:1 ttl:56m`: tokens written to / read from the cache by the latest request, the session hit ratio, the miss count (only when above 0), and the time left until the cache expires (`<1m`, `Nm` under an hour, `NhMMm` from an hour; omitted when `expires_at` is absent)
+- `cache:w1.8k/r109.0k 99% miss:1 ttl:56m`: tokens written to / read from the cache by the latest request, the session hit ratio (rounded down), the miss count (only when above 0), and the time left until the cache expires (`<1m`, `Nm` under an hour, `NhMMm` from an hour; omitted when `expires_at` is absent)
 - `cache:COLD rebuild~109.0k 99% miss:1`: the cache is cold (`warm` is false, or `expires_at` has passed); the next request re-caches about 109.0k tokens (`rebuild~` is omitted when Claude Code does not send it)
 - `cache:w48.0k/r0 MISS(server) 99% miss:2 ttl:59m`: the latest request rebuilt the cache. The cause in brackets comes from `last_miss_cause` and is shown only when the last miss was within 120 s. Words: `tools` (tools_changed), `system` (system_prompt_changed), `ttl5m` / `ttl1h` (ttl_expired_*), `server` (likely_server_side); an unknown cause is shown as sent, minus a `likely_` prefix
+- `cache:w30.0k/r15.0k rebuild 97% miss:1 ttl:59m`: the latest request wrote 4096 or more tokens and its read collapsed, but Claude Code reports no miss within the last 120 s (`misses`/`last_miss_at` present, latest miss older). That is an expected rebuild (compaction, cleared tool results), shown in yellow without `MISS`. Objects with no miss data keep `MISS`
 - `cache:w21.0k/r0 new 0% ttl:60m`: the first request of the session (not a miss)
 
-Official numbers (straight from Claude Code): the hit ratio, `miss:N`, the expiry time, the `rebuild~` estimate, the miss cause, and the latest request's write/read taken from `context_window.current_usage`. Derived by the HUD: the `ttl:` countdown (`expires_at` minus now), the `MISS` marker (a write of 4096 or more tokens whose read is zero or under half the previous request's prompt; Claude Code counts misses but does not flag the latest request), and write/read counts from the transcript when `current_usage` has none.
+Official numbers (straight from Claude Code): the hit ratio, `miss:N`, the expiry time, the `rebuild~` estimate, the miss cause, and the latest request's write/read taken from `context_window.current_usage`. Derived by the HUD: the `ttl:` countdown (`expires_at` minus now, clamped to the declared `ttl` of `5m` or `1h`, omitted when more than twice that), the `MISS` / `rebuild` marker (a write of 4096 or more tokens whose read is zero or under half the previous request's prompt; `MISS` only when Claude Code's `last_miss_at` is within 120 s or it sent no miss data, otherwise `rebuild`), and write/read counts from the transcript when `current_usage` has none.
 
 Transcript fallback format (parsed from the transcript's per-message usage):
 - `cache:w1.2k/r45.0k s97%`: tokens written to / read from the cache by the latest request, then the session hit rate (read / (read + written + uncached input))
 - `cache:w21.0k/r0 new`: first request of a session, which writes the cache by design (not a miss)
 - `cache:w48.0k/r0 MISS s83%`: after the first request, the latest request wrote 4096 or more tokens and its read was zero or under half the previous request's prompt (a shared system/tools prefix can stay cached, so a rebuild can still read some tokens), so the cache was rebuilt (expired or invalidated; also after a model switch or compaction)
 
-Nothing is shown until usage data exists. The `new`, `COLD` and `MISS` words carry the signal, not the colour (green, yellow, red).
+Nothing is shown until usage data exists. The `new`, `COLD`, `MISS` and `rebuild` words carry the signal, not the colour (green, yellow, red).
 
 ### safeMode
 
