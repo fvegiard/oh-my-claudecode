@@ -6,14 +6,14 @@
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
     "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-    "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
+    "sourceSha256": "83b98f22621b80e790c15f1ccd9cfd30d4606721000188c9a81c7a6557fa520f",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
   "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-  "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
+  "sourceSha256": "83b98f22621b80e790c15f1ccd9cfd30d4606721000188c9a81c7a6557fa520f",
   "counts": {
     "public": {
       "skills": 84,
@@ -28,8 +28,8 @@
       "toolFiles": 65,
       "libFiles": 49,
       "templateHooks": 25,
-      "srcFiles": 1446,
-      "total": 1471
+      "srcFiles": 1443,
+      "total": 1468
     },
     "generated": {
       "distFiles": 5639,
@@ -884,6 +884,7 @@
       "scripts/lib/encode-project-path.mjs",
       "scripts/lib/enforcement-log.mjs",
       "scripts/lib/force-agent-delegation-preflight.mjs",
+      "scripts/lib/hook-command-normalizer.d.mts",
       "scripts/lib/hook-command-normalizer.mjs",
       "scripts/lib/hud-cache-wrapper.sh",
       "scripts/lib/hud-wrapper-template.mjs",
@@ -896,6 +897,7 @@
       "scripts/lib/ralph-startup.mjs",
       "scripts/lib/read-budget-preflight.mjs",
       "scripts/lib/run-reaper.mjs",
+      "scripts/lib/shell-checks.mjs",
       "scripts/lib/skill-entitlements.mjs",
       "scripts/lib/state-lock.mjs",
       "scripts/lib/state-root.cjs",
@@ -7352,11 +7354,6 @@
         "id": ".omx/plans/source-overall-cleanup/ownership-matrix.md",
         "kind": "other",
         "path": ".omx/plans/source-overall-cleanup/ownership-matrix.md"
-      },
-      {
-        "id": ".secret-scan-allowlist",
-        "kind": "other",
-        "path": ".secret-scan-allowlist"
       },
       {
         "id": "AGENTS.md",
@@ -37424,6 +37421,11 @@
         "path": "scripts/lib/force-agent-delegation-preflight.mjs"
       },
       {
+        "id": "scripts/lib/hook-command-normalizer.d.mts",
+        "kind": "script",
+        "path": "scripts/lib/hook-command-normalizer.d.mts"
+      },
+      {
         "id": "scripts/lib/hook-command-normalizer.mjs",
         "kind": "script",
         "path": "scripts/lib/hook-command-normalizer.mjs"
@@ -37482,6 +37484,11 @@
         "id": "scripts/lib/run-reaper.mjs",
         "kind": "script",
         "path": "scripts/lib/run-reaper.mjs"
+      },
+      {
+        "id": "scripts/lib/shell-checks.mjs",
+        "kind": "script",
+        "path": "scripts/lib/shell-checks.mjs"
       },
       {
         "id": "scripts/lib/skill-entitlements.mjs",
@@ -42404,11 +42411,6 @@
         "path": "src/cli/__tests__/cli-boot.test.ts"
       },
       {
-        "id": "src/cli/__tests__/config-display.test.ts",
-        "kind": "src",
-        "path": "src/cli/__tests__/config-display.test.ts"
-      },
-      {
         "id": "src/cli/__tests__/doctor-plugin-dir.test.ts",
         "kind": "src",
         "path": "src/cli/__tests__/doctor-plugin-dir.test.ts"
@@ -42712,11 +42714,6 @@
         "id": "src/cli/commands/wait.ts",
         "kind": "src",
         "path": "src/cli/commands/wait.ts"
-      },
-      {
-        "id": "src/cli/config-display.ts",
-        "kind": "src",
-        "path": "src/cli/config-display.ts"
       },
       {
         "id": "src/cli/graph.ts",
@@ -46034,11 +46031,6 @@
         "path": "src/mcp/__tests__/prompt-injection.test.ts"
       },
       {
-        "id": "src/mcp/__tests__/servers.test.ts",
-        "kind": "src",
-        "path": "src/mcp/__tests__/servers.test.ts"
-      },
-      {
         "id": "src/mcp/__tests__/standalone-listtools.test.ts",
         "kind": "src",
         "path": "src/mcp/__tests__/standalone-listtools.test.ts"
@@ -48084,6 +48076,11 @@
         "path": "tests/fixtures/prompt-projection/transaction-backup-rollback.json"
       },
       {
+        "id": "tests/fixtures/shell-checks/cases.txt",
+        "kind": "other",
+        "path": "tests/fixtures/shell-checks/cases.txt"
+      },
+      {
         "id": "tests/fixtures/typescript-pnpm/package.json",
         "kind": "other",
         "path": "tests/fixtures/typescript-pnpm/package.json"
@@ -48184,6 +48181,11 @@
         "path": "tests/integration/jev-model-routing-effort.test.ts"
       },
       {
+        "id": "tests/integration/jev-model-routing-marker.test.ts",
+        "kind": "other",
+        "path": "tests/integration/jev-model-routing-marker.test.ts"
+      },
+      {
         "id": "tests/integration/multirepo-workspace.test.ts",
         "kind": "other",
         "path": "tests/integration/multirepo-workspace.test.ts"
@@ -48207,6 +48209,16 @@
         "id": "tests/integration/session-flow-skill.test.ts",
         "kind": "other",
         "path": "tests/integration/session-flow-skill.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks-hooks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks-hooks.test.ts"
+      },
+      {
+        "id": "tests/integration/shell-checks.test.ts",
+        "kind": "other",
+        "path": "tests/integration/shell-checks.test.ts"
       },
       {
         "id": "tests/integration/skill-map-references.test.ts",
@@ -49801,6 +49813,26 @@
         "kind": "imports"
       },
       {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/lib/shell-checks.mjs",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
         "from": "scripts/lib/state-lock.mjs",
         "to": "external:better-sqlite3",
         "kind": "imports"
@@ -50202,6 +50234,11 @@
       },
       {
         "from": "scripts/post-tool-use-failure.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-use-failure.mjs",
         "to": "scripts/lib/state-root.mjs",
         "kind": "imports"
       },
@@ -50268,6 +50305,11 @@
       {
         "from": "scripts/post-tool-verifier.mjs",
         "to": "scripts/lib/ralph-startup.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/post-tool-verifier.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -50393,6 +50435,11 @@
       {
         "from": "scripts/pre-tool-enforcer.mjs",
         "to": "scripts/lib/read-budget-preflight.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "scripts/pre-tool-enforcer.mjs",
+        "to": "scripts/lib/shell-checks.mjs",
         "kind": "imports"
       },
       {
@@ -61031,36 +61078,6 @@
         "kind": "imports"
       },
       {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "external:fs",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "external:os",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "external:path",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "external:vitest",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "src/cli/config-display.ts",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/__tests__/config-display.test.ts",
-        "to": "src/cli/index.ts",
-        "kind": "imports"
-      },
-      {
         "from": "src/cli/__tests__/doctor-plugin-dir.test.ts",
         "to": "external:path",
         "kind": "imports"
@@ -63013,11 +63030,6 @@
       {
         "from": "src/cli/index.ts",
         "to": "src/cli/commands/wait.ts",
-        "kind": "imports"
-      },
-      {
-        "from": "src/cli/index.ts",
-        "to": "src/cli/config-display.ts",
         "kind": "imports"
       },
       {
@@ -74572,6 +74584,11 @@
       },
       {
         "from": "src/hooks/setup/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hooks/setup/index.ts",
         "to": "src/hooks/beads-context/index.ts",
         "kind": "imports"
       },
@@ -77987,6 +78004,11 @@
       },
       {
         "from": "src/installer/index.ts",
+        "to": "scripts/lib/hook-command-normalizer.mjs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/installer/index.ts",
         "to": "src/config/builtin-skill-entitlements.json",
         "kind": "imports"
       },
@@ -79308,36 +79330,6 @@
       {
         "from": "src/mcp/__tests__/prompt-injection.test.ts",
         "to": "src/mcp/prompt-injection.ts",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "external:fs",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "external:os",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "external:path",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "external:vitest",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "src/config/loader.ts",
-        "kind": "imports"
-      },
-      {
-        "from": "src/mcp/__tests__/servers.test.ts",
-        "to": "src/mcp/servers.ts",
         "kind": "imports"
       },
       {
@@ -91176,6 +91168,46 @@
         "kind": "imports"
       },
       {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:http",
+        "kind": "type-imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/jev-model-routing-marker.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
         "from": "tests/integration/multirepo-workspace.test.ts",
         "to": "external:node:fs",
         "kind": "imports"
@@ -91313,6 +91345,66 @@
       {
         "from": "tests/integration/session-flow-skill.test.ts",
         "to": "src/workflow/registry.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks-hooks.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:child_process",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:node:url",
+        "kind": "imports"
+      },
+      {
+        "from": "tests/integration/shell-checks.test.ts",
+        "to": "external:vitest",
         "kind": "imports"
       },
       {
@@ -92197,12 +92289,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8244,
-      "edgeCount": 8755,
-      "importEdgeCount": 7310,
+      "nodeCount": 8246,
+      "edgeCount": 8771,
+      "importEdgeCount": 7325,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "2781bbf45576978c2af8ec86c86256595d69e5823e4441f9905cac57ff0aa610",
-  "manifestSha256": "838c158f5ec71c3ffccece9638a70c27f9e09b3480964f0d76a4a9d51887fbff"
+  "inventorySha256": "4d104b83e76ebcd806ffe143b5e535dfe8d0fa7cd84e586dd0bcdf06eff54863",
+  "manifestSha256": "370c3c7afcc3a73c5080f9744be54cc28da6b48ed1c632755707ba432c9b319c"
 }
