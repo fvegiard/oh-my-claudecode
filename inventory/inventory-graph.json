@@ -6,14 +6,14 @@
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
     "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-    "sourceSha256": "5a9400a69a8d69a92c59fe557c2445865a9748de6f910b618f054d44c70a04dc",
+    "sourceSha256": "11f30af1f05650ca7a2d3791de8de02f36df28cac0b41c65ba02b9ec8a44baa2",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
   "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-  "sourceSha256": "5a9400a69a8d69a92c59fe557c2445865a9748de6f910b618f054d44c70a04dc",
+  "sourceSha256": "11f30af1f05650ca7a2d3791de8de02f36df28cac0b41c65ba02b9ec8a44baa2",
   "counts": {
     "public": {
       "skills": 84,
@@ -28,8 +28,8 @@
       "toolFiles": 65,
       "libFiles": 49,
       "templateHooks": 25,
-      "srcFiles": 1448,
-      "total": 1473
+      "srcFiles": 1450,
+      "total": 1475
     },
     "generated": {
       "distFiles": 5639,
@@ -37,14 +37,14 @@
       "total": 5647
     },
     "prompt": {
-      "promptLikeFiles": 65
+      "promptLikeFiles": 67
     },
     "skills": 84,
     "commands": 21,
     "hookFiles": 336,
     "workflows": 8,
     "agentDefinitions": 18,
-    "promptLikeFiles": 65
+    "promptLikeFiles": 67
   },
   "public": {
     "skills": [
@@ -799,6 +799,7 @@
       "skills/why/references/synthesizer-prompt.md",
       "src/__tests__/auto-upgrade-prompt.test.ts",
       "src/__tests__/helpers/prompt-test-helpers.ts",
+      "src/__tests__/hud/prompt-cache-official.test.ts",
       "src/__tests__/hud/prompt-cache.test.ts",
       "src/__tests__/hud/prompt-time.test.ts",
       "src/__tests__/load-agent-prompt.test.ts",
@@ -825,6 +826,7 @@
       "src/hooks/prompt-prerequisites/index.ts",
       "src/hud/elements/prompt-cache.ts",
       "src/hud/elements/prompt-time.ts",
+      "src/hud/prompt-cache-stdin.ts",
       "src/lib/__tests__/truncate-prompt.test.ts",
       "src/lib/truncate-prompt.ts",
       "src/mcp/__tests__/prompt-injection.test.ts",
@@ -6997,6 +6999,7 @@
       "skills/why/references/synthesizer-prompt.md",
       "src/__tests__/auto-upgrade-prompt.test.ts",
       "src/__tests__/helpers/prompt-test-helpers.ts",
+      "src/__tests__/hud/prompt-cache-official.test.ts",
       "src/__tests__/hud/prompt-cache.test.ts",
       "src/__tests__/hud/prompt-time.test.ts",
       "src/__tests__/load-agent-prompt.test.ts",
@@ -7023,6 +7026,7 @@
       "src/hooks/prompt-prerequisites/index.ts",
       "src/hud/elements/prompt-cache.ts",
       "src/hud/elements/prompt-time.ts",
+      "src/hud/prompt-cache-stdin.ts",
       "src/lib/__tests__/truncate-prompt.test.ts",
       "src/lib/truncate-prompt.ts",
       "src/mcp/__tests__/prompt-injection.test.ts",
@@ -41153,6 +41157,11 @@
         "path": "src/__tests__/hud/payload-warning-render.test.ts"
       },
       {
+        "id": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "kind": "src",
+        "path": "src/__tests__/hud/prompt-cache-official.test.ts"
+      },
+      {
         "id": "src/__tests__/hud/prompt-cache.test.ts",
         "kind": "src",
         "path": "src/__tests__/hud/prompt-cache.test.ts"
@@ -45536,6 +45545,11 @@
         "id": "src/hud/payload-estimate.ts",
         "kind": "src",
         "path": "src/hud/payload-estimate.ts"
+      },
+      {
+        "id": "src/hud/prompt-cache-stdin.ts",
+        "kind": "src",
+        "path": "src/hud/prompt-cache-stdin.ts"
       },
       {
         "id": "src/hud/render.ts",
@@ -55011,6 +55025,36 @@
       },
       {
         "from": "src/__tests__/hud/payload-warning-render.test.ts",
+        "to": "src/hud/types.ts",
+        "kind": "type-imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "to": "src/hud/elements/context.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "to": "src/hud/elements/prompt-cache.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "to": "src/hud/render.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
+        "to": "src/hud/types.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache-official.test.ts",
         "to": "src/hud/types.ts",
         "kind": "type-imports"
       },
@@ -76526,6 +76570,11 @@
       },
       {
         "from": "src/hud/elements/prompt-cache.ts",
+        "to": "src/hud/prompt-cache-stdin.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/elements/prompt-cache.ts",
         "to": "src/hud/types.ts",
         "kind": "imports"
       },
@@ -76691,6 +76740,11 @@
       },
       {
         "from": "src/hud/index.ts",
+        "to": "src/hud/prompt-cache-stdin.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/index.ts",
         "to": "src/hud/render.ts",
         "kind": "imports"
       },
@@ -76828,6 +76882,11 @@
         "from": "src/hud/payload-estimate.ts",
         "to": "external:fs",
         "kind": "imports"
+      },
+      {
+        "from": "src/hud/prompt-cache-stdin.ts",
+        "to": "src/hud/types.ts",
+        "kind": "type-imports"
       },
       {
         "from": "src/hud/render.ts",
@@ -92296,12 +92355,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8246,
-      "edgeCount": 8772,
-      "importEdgeCount": 7324,
+      "nodeCount": 8248,
+      "edgeCount": 8781,
+      "importEdgeCount": 7331,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "3eab5d52c2da37fbc14b175d886b14751f447f529aaaffc8ce062e4282b3aa4f",
-  "manifestSha256": "cff21873f705227f309a0d2856dc2009b5ea9cdff7829ae33d798ab7677bfd53"
+  "inventorySha256": "401a79298e90532b650325198bede62c6faf04ba11b36fa96cf33ae1446156c3",
+  "manifestSha256": "1dc491393fe20b2fd235d40626b62022309915b2b40ce4d5124262a7bf522f64"
 }
