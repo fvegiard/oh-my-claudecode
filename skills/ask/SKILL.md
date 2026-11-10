@@ -37,6 +37,7 @@ omc ask {{ARGUMENTS}}
 ## Requirements
 
 - The selected local CLI must be installed and authenticated.
+- External advisor CLIs run separately from Claude Code and do not inherit its GitHub MCP server or `mcp__github__*` tools. When the selected runtime has no GitHub integration, use an authenticated `gh` CLI instead; do not assume MCP support that the runtime does not provide.
 - Verify availability with the matching command:
 
 ```bash

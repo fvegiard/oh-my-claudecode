@@ -42,7 +42,7 @@ afterEach(() => {
   rmSync(logDir, { recursive: true, force: true });
 });
 
-function stubFetch(noul = false): { fetchFn: typeof fetch; calls: Array<{ body: string }> } {
+function stubFetch(noul: boolean | number = false): { fetchFn: typeof fetch; calls: Array<{ body: string }> } {
   const calls: Array<{ body: string }> = [];
   const fetchFn = (async (_url: unknown, init?: unknown) => {
     const body = (init as RequestInit | undefined)?.body as string;
@@ -92,13 +92,13 @@ describe('learner-extraction shadow judgment point', () => {
     const entry = JSON.parse(lines[0]!) as {
       point: string;
       mode: string;
-      heuristic: { detected: boolean };
+      heuristic: boolean;
       jev: { type: string } | null;
       state: Record<string, unknown>;
     };
     expect(entry.point).toBe('learner-extraction');
     expect(entry.mode).toBe('shadow');
-    expect(entry.heuristic.detected).toBe(true);
+    expect(entry.heuristic).toBe(true);
     expect(entry.jev?.type).toBe('noul');
     expect(entry.state).toMatchObject({
       assistant_message: EXTRACTABLE,
@@ -172,9 +172,30 @@ describe('learner-extraction shadow judgment point', () => {
     expect(result.source).toBe('twin');
 
     const lines = await waitForLogLines(1);
-    const entry = JSON.parse(lines[0]!) as { mode: string; heuristic: unknown; jev: unknown };
+    const entry = JSON.parse(lines[0]!) as { mode: string; heuristic: boolean; jev: unknown };
     expect(entry.mode).toBe('degraded');
-    expect(entry.heuristic).toEqual(detectExtractableMoment(EXTRACTABLE));
+    expect(entry.heuristic).toBe(detectExtractableMoment(EXTRACTABLE).detected);
     expect(entry.jev).toBeNull();
+  });
+});
+
+describe('learner-extraction point in active mode', () => {
+  // The API returns noul as the probability of "yes". Each message is picked
+  // so that the twin says the opposite of Jev, which shows that Jev decided.
+  it.each([
+    { noul: 0.92, message: ROUTINE, expected: true },
+    { noul: 0.08, message: EXTRACTABLE, expected: false },
+  ])('reads a noul probability of $noul as detected: $expected', async ({ noul, message, expected }) => {
+    process.env.TYPESAFE_API_KEY = TEST_KEY;
+    process.env.OMC_JEV = 'learner-extraction:active';
+    expect(detectExtractableMoment(message).detected).toBe(!expected);
+    const { fetchFn, calls } = stubFetch(noul);
+
+    const result = await recordLearnerExtractionShadow(message, undefined, fetchFn);
+
+    expect(result.mode).toBe('active');
+    expect(result.source).toBe('jev');
+    expect(result.answer.detected).toBe(expected);
+    expect(calls).toHaveLength(1);
   });
 });
