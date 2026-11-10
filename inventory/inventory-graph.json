@@ -6,14 +6,14 @@
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
     "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-    "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
+    "sourceSha256": "cb834f28e8f02fe0c8f89ac62dc35e66298252f5bec9a79111f0b3551be4dcaa",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
   "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-  "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
+  "sourceSha256": "cb834f28e8f02fe0c8f89ac62dc35e66298252f5bec9a79111f0b3551be4dcaa",
   "counts": {
     "public": {
       "skills": 84,
@@ -28,8 +28,8 @@
       "toolFiles": 65,
       "libFiles": 49,
       "templateHooks": 25,
-      "srcFiles": 1446,
-      "total": 1471
+      "srcFiles": 1448,
+      "total": 1473
     },
     "generated": {
       "distFiles": 5639,
@@ -37,14 +37,14 @@
       "total": 5647
     },
     "prompt": {
-      "promptLikeFiles": 63
+      "promptLikeFiles": 65
     },
     "skills": 84,
     "commands": 21,
     "hookFiles": 336,
     "workflows": 8,
     "agentDefinitions": 18,
-    "promptLikeFiles": 63
+    "promptLikeFiles": 65
   },
   "public": {
     "skills": [
@@ -799,6 +799,7 @@
       "skills/why/references/synthesizer-prompt.md",
       "src/__tests__/auto-upgrade-prompt.test.ts",
       "src/__tests__/helpers/prompt-test-helpers.ts",
+      "src/__tests__/hud/prompt-cache.test.ts",
       "src/__tests__/hud/prompt-time.test.ts",
       "src/__tests__/load-agent-prompt.test.ts",
       "src/__tests__/prompt-injection.test.ts",
@@ -822,6 +823,7 @@
       "src/hooks/autopilot/prompts.ts",
       "src/hooks/persistent-mode/__tests__/prompt-truncation.test.ts",
       "src/hooks/prompt-prerequisites/index.ts",
+      "src/hud/elements/prompt-cache.ts",
       "src/hud/elements/prompt-time.ts",
       "src/lib/__tests__/truncate-prompt.test.ts",
       "src/lib/truncate-prompt.ts",
@@ -6995,6 +6997,7 @@
       "skills/why/references/synthesizer-prompt.md",
       "src/__tests__/auto-upgrade-prompt.test.ts",
       "src/__tests__/helpers/prompt-test-helpers.ts",
+      "src/__tests__/hud/prompt-cache.test.ts",
       "src/__tests__/hud/prompt-time.test.ts",
       "src/__tests__/load-agent-prompt.test.ts",
       "src/__tests__/prompt-injection.test.ts",
@@ -7018,6 +7021,7 @@
       "src/hooks/autopilot/prompts.ts",
       "src/hooks/persistent-mode/__tests__/prompt-truncation.test.ts",
       "src/hooks/prompt-prerequisites/index.ts",
+      "src/hud/elements/prompt-cache.ts",
       "src/hud/elements/prompt-time.ts",
       "src/lib/__tests__/truncate-prompt.test.ts",
       "src/lib/truncate-prompt.ts",
@@ -41149,6 +41153,11 @@
         "path": "src/__tests__/hud/payload-warning-render.test.ts"
       },
       {
+        "id": "src/__tests__/hud/prompt-cache.test.ts",
+        "kind": "src",
+        "path": "src/__tests__/hud/prompt-cache.test.ts"
+      },
+      {
         "id": "src/__tests__/hud/prompt-time.test.ts",
         "kind": "src",
         "path": "src/__tests__/hud/prompt-time.test.ts"
@@ -45457,6 +45466,11 @@
         "id": "src/hud/elements/prd.ts",
         "kind": "src",
         "path": "src/hud/elements/prd.ts"
+      },
+      {
+        "id": "src/hud/elements/prompt-cache.ts",
+        "kind": "src",
+        "path": "src/hud/elements/prompt-cache.ts"
       },
       {
         "id": "src/hud/elements/prompt-time.ts",
@@ -54997,6 +55011,61 @@
       },
       {
         "from": "src/__tests__/hud/payload-warning-render.test.ts",
+        "to": "src/hud/types.ts",
+        "kind": "type-imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "external:node:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "external:node:os",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "external:node:path",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/elements/context.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/elements/prompt-cache.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/render.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/sanitize.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/transcript.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
+        "to": "src/hud/types.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/__tests__/hud/prompt-cache.test.ts",
         "to": "src/hud/types.ts",
         "kind": "type-imports"
       },
@@ -76317,6 +76386,11 @@
       },
       {
         "from": "src/hud/elements/index.ts",
+        "to": "src/hud/elements/prompt-cache.ts",
+        "kind": "exports"
+      },
+      {
+        "from": "src/hud/elements/index.ts",
         "to": "src/hud/elements/prompt-time.ts",
         "kind": "exports"
       },
@@ -76437,6 +76511,26 @@
       },
       {
         "from": "src/hud/elements/prd.ts",
+        "to": "src/hud/types.ts",
+        "kind": "type-imports"
+      },
+      {
+        "from": "src/hud/elements/prompt-cache.ts",
+        "to": "src/cli/utils/formatting.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/elements/prompt-cache.ts",
+        "to": "src/hud/colors.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/elements/prompt-cache.ts",
+        "to": "src/hud/types.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/elements/prompt-cache.ts",
         "to": "src/hud/types.ts",
         "kind": "type-imports"
       },
@@ -76833,6 +76927,11 @@
       {
         "from": "src/hud/render.ts",
         "to": "src/hud/elements/prd.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/hud/render.ts",
+        "to": "src/hud/elements/prompt-cache.ts",
         "kind": "imports"
       },
       {
@@ -92197,12 +92296,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8244,
-      "edgeCount": 8755,
-      "importEdgeCount": 7310,
+      "nodeCount": 8246,
+      "edgeCount": 8772,
+      "importEdgeCount": 7324,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "2781bbf45576978c2af8ec86c86256595d69e5823e4441f9905cac57ff0aa610",
-  "manifestSha256": "838c158f5ec71c3ffccece9638a70c27f9e09b3480964f0d76a4a9d51887fbff"
+  "inventorySha256": "3eab5d52c2da37fbc14b175d886b14751f447f529aaaffc8ce062e4282b3aa4f",
+  "manifestSha256": "44808eb9b655bc6de454c79619b1adfd484260f4e07465801d81adb82df664ca"
 }
