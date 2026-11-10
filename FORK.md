@@ -49,6 +49,11 @@ Every sync keeps each row until its "Drop when" is true. A change missing from t
 | `.secret-scan-allowlist` | Hash-keyed reviewed exceptions for machine-setup's `scripts/secret-scan` (format in machine-setup `docs/secret-scan.md`) | An entry's matched bytes change: re-review that entry, never widen it |
 | Docs: `agents/explore.md` (no `explore-high`, which does not exist), `skills/ask/SKILL.md` and `docs/REFERENCE.md` (advisor CLIs do not inherit Claude Code's GitHub MCP tools) | Upstream text points at a missing agent and is silent on the MCP limit | Upstream says the same |
 
+Rows that change `src/` are not live on the machines yet: the plugin and the `omc` CLI run the committed `dist/`
+and `bridge/`, and this fork has no rebuild step (`npm run build`, then commit both folders). Check: after
+`npx tsc`, `git status --short dist` must print nothing. The same check shows upstream v5.8.3 shipped `dist/`
+without its own #4903, #4904 and session-end fixes.
+
 ## After promoting `stable`
 On each machine, and again inside each `claude-env <name>` (it has its own plugin and clone), in this order:
 1. `claude plugin update oh-my-claudecode@omc`
