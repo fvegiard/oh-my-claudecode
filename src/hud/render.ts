@@ -30,11 +30,13 @@ import { renderPermission } from "./elements/permission.js";
 import { renderThinking } from "./elements/thinking.js";
 import { renderSession } from "./elements/session.js";
 import { renderTokenUsage } from "./elements/token-usage.js";
+import { renderPromptCache } from "./elements/prompt-cache.js";
 import { renderEnterpriseCost } from "./elements/enterprise-cost.js";
 import { renderPromptTime } from "./elements/prompt-time.js";
 import { renderAutopilot } from "./elements/autopilot.js";
 import { renderCwd } from "./elements/cwd.js";
 import { renderHostname } from "./elements/hostname.js";
+import { renderAccount } from "./elements/account.js";
 import { renderGitRepo, renderGitBranch, renderGitStatus } from "./elements/git.js";
 import { renderMultiRepo } from "./elements/multi-repo.js";
 import { renderModel } from "./elements/model.js";
@@ -323,6 +325,11 @@ export async function render(
     if (keySource) rendered.set("apiKeySource", keySource);
   }
 
+  if (enabledElements.account) {
+    const accountElement = renderAccount();
+    if (accountElement) rendered.set("account", accountElement);
+  }
+
   if (enabledElements.profile && context.profileName) {
     rendered.set("profile", bold(`profile:${context.profileName}`));
   }
@@ -445,6 +452,11 @@ export async function render(
       hudLabels,
     );
     if (tokenUsage) rendered.set("tokens", tokenUsage);
+  }
+
+  if (enabledElements.showPromptCache === true) {
+    const promptCache = renderPromptCache(context.promptCache, hudLabels, context.promptCacheOfficial);
+    if (promptCache) rendered.set("promptCache", promptCache);
   }
 
   if (enabledElements.ralph && context.ralph) {

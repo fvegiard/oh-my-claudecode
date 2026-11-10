@@ -45,6 +45,42 @@ export interface OmcHudState {
 // Stdin from Claude Code
 // ============================================================================
 
+/** Likely cause of the last prompt-cache miss (statusline `prompt_cache.last_miss_cause`). */
+export interface StatuslinePromptCacheMissCause {
+  /** Cause names such as tools_changed, system_prompt_changed, ttl_expired_5m, likely_server_side (not exhaustive). */
+  causes?: string[];
+  tools_added?: number;
+  tools_removed?: number;
+  system_char_delta?: number;
+}
+
+/** Statusline stdin `prompt_cache` object. Timestamps are Unix epoch seconds. */
+export interface StatuslinePromptCache {
+  warm?: boolean;
+  caching_observed?: boolean;
+  /** Documented values "5m" or "1h". */
+  ttl?: string;
+  expires_at?: number | null;
+  requests?: number;
+  misses?: number;
+  expected_rebuilds?: number;
+  /** Session cache-read share of all input tokens, 0 to 1. */
+  hit_ratio?: number | null;
+  cache_write_tokens?: number;
+  miss_recache_tokens?: number;
+  last_miss_at?: number | null;
+  last_miss_cause?: StatuslinePromptCacheMissCause | null;
+  miss_causes?: Record<string, number> | null;
+  recache_tokens_if_cold?: number | null;
+}
+
+/** Defensively parsed official prompt-cache data (wrong-typed fields dropped). */
+export interface OfficialPromptCache {
+  cache: StatuslinePromptCache;
+  /** context_window.current_usage of the latest request, when it carries cache counts. */
+  currentUsage?: PromptCacheTurn;
+}
+
 export interface StatuslineStdin {
   /** Transcript path for parsing conversation history */
   transcript_path?: string;
@@ -84,6 +120,14 @@ export interface StatuslineStdin {
       cache_read_input_tokens?: number;
     };
   };
+
+  /**
+   * Official prompt-cache statistics (Claude Code 2.1.251+; `last_miss_cause`
+   * and `miss_causes` 2.1.260+). Absent on older versions and until the main
+   * conversation's first API response. Evolving object: every field optional,
+   * unknown keys possible, so read it through `parseOfficialPromptCache`.
+   */
+  prompt_cache?: StatuslinePromptCache;
 
   /** Rate limits from Claude Code statusline stdin */
   rate_limits?: {
@@ -160,6 +204,29 @@ export interface LastRequestTokenUsage {
   reasoningTokens?: number;
 }
 
+/** Prompt-cache token counts for one API request (transcript message.usage). */
+export interface PromptCacheTurn {
+  /** Uncached input tokens (usage.input_tokens). */
+  inputTokens: number;
+  /** Tokens written to the prompt cache (usage.cache_creation_input_tokens). */
+  cacheCreationTokens: number;
+  /** Tokens read from the prompt cache (usage.cache_read_input_tokens). */
+  cacheReadTokens: number;
+}
+
+export interface PromptCacheUsage {
+  /** Latest request. */
+  last: PromptCacheTurn;
+  /** Sum over every request seen in the transcript. */
+  session: PromptCacheTurn;
+  /** Number of distinct requests seen. */
+  turns: number;
+  /** False when only the tail of a large transcript was read, so `turns` and `session` are partial. */
+  complete: boolean;
+  /** Prompt size (uncached + written + read tokens) of the request before `last`; absent when `last` is the first request seen. */
+  previousPromptTokens?: number;
+}
+
 export interface TranscriptData {
   agents: ActiveAgent[];
   /**
@@ -176,6 +243,7 @@ export interface TranscriptData {
   thinkingState?: ThinkingState;
   lastRequestTokenUsage?: LastRequestTokenUsage;
   sessionTotalTokens?: number;
+  promptCache?: PromptCacheUsage;
   toolCallCount: number;
   agentCallCount: number;
   skillCallCount: number;
@@ -438,6 +506,12 @@ export interface HudRenderContext {
   /** Session token total (input + output) when transcript parsing is reliable enough to calculate it */
   sessionTotalTokens?: number | null;
 
+  /** Prompt-cache write/read counts parsed from transcript message.usage */
+  promptCache?: PromptCacheUsage | null;
+
+  /** Official statusline `prompt_cache` object (Claude Code 2.1.251+), parsed; absent on older versions */
+  promptCacheOfficial?: OfficialPromptCache | null;
+
   /** Installed OMC version (e.g. "4.1.10") */
   omcVersion: string | null;
 
@@ -540,6 +614,7 @@ export type HudLocale = 'en' | 'zh-CN';
 export interface HudLabels {
   context: string;
   tokens: string;
+  cache: string;
   tool: string;
   agent: string;
   skill: string;
@@ -557,6 +632,7 @@ export interface HudLabels {
 export const DEFAULT_HUD_LABELS: HudLabels = {
   context: 'ctx',
   tokens: 'tok',
+  cache: 'cache',
   tool: 'T',
   agent: 'A',
   skill: 'S',
@@ -576,6 +652,7 @@ export const HUD_LOCALE_LABELS: Record<HudLocale, HudLabels> = {
   'zh-CN': {
     context: '上下文',
     tokens: '令牌',
+    cache: '缓存',
     tool: '工具',
     agent: '智能体',
     skill: '技能',
@@ -654,6 +731,7 @@ export interface HudElementConfig {
   thinking: boolean;          // Show extended thinking indicator
   thinkingFormat: ThinkingFormat;  // Thinking indicator format
   apiKeySource: boolean;       // Show API key source (project/global/env)
+  account: boolean;            // Show signed-in Claude account email (opt-in due to screen sharing)
   hostname: boolean;           // Show machine hostname (useful for multi-host SSH workflows)
   profile: boolean;            // Show active profile name (from CLAUDE_CONFIG_DIR)
   missionBoard?: boolean;      // Show opt-in mission board above existing HUD detail lines
@@ -662,6 +740,7 @@ export interface HudElementConfig {
   showSessionDuration?: boolean;  // Show session:19m duration display (default: true if sessionHealth is true)
   showHealthIndicator?: boolean;  // Show 🟢/🟡/🔴 health indicator (default: true if sessionHealth is true)
   showTokens?: boolean;           // Show last-request token usage when enabled (tok:i1.2k/o340)
+  showPromptCache?: boolean;      // Show prompt-cache writes/reads and hit rate when enabled (cache:w1.2k/r45.0k s97%; with Claude Code's official prompt_cache: cache:w1.8k/r109.0k 99% miss:1 ttl:52m)
   enterpriseMode?: boolean;       // Explicit override for enterprise mode (undefined = auto-detect)
   showEnterpriseCost?: boolean;   // Whether to render enterprise billing cost (default: true when enterprise)
   useBars: boolean;           // Show visual progress bars instead of/alongside percentages
@@ -717,10 +796,10 @@ export interface LayoutConfig {
  * Used as fallback when no layout is configured.
  */
 export const DEFAULT_ELEMENT_ORDER: Required<LayoutConfig> = {
-  line1: ['hostname', 'cwd', 'gitRepo', 'gitBranch', 'gitStatus', 'apiKeySource', 'profile'],
+  line1: ['hostname', 'cwd', 'gitRepo', 'gitBranch', 'gitStatus', 'apiKeySource', 'account', 'profile'],
   main: [
     'omcLabel', 'model', 'effort', 'claudeLabel', 'enterpriseCost', 'rateLimits', 'customBuckets', 'permission', 'thinking',
-    'promptTime', 'session', 'tokens', 'ralph', 'autopilot', 'prd',
+    'promptTime', 'session', 'tokens', 'promptCache', 'ralph', 'autopilot', 'prd',
     'skills', 'lastSkill', 'contextBar', 'agents', 'background',
     'callCounts', 'lastTool', 'sessionSummary',
   ],
@@ -788,6 +867,7 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
     thinking: true,
     thinkingFormat: 'text',   // Text format for backward compatibility
     apiKeySource: false, // Disabled by default
+    account: false, // Opt-in to avoid exposing email on screen shares/streams
     hostname: false,
     profile: true,  // Show profile name when CLAUDE_CONFIG_DIR is set
     missionBoard: false,  // Opt-in mission board for whole-run progress tracking
@@ -796,6 +876,7 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,  // Disabled by default for backwards compatibility
     showCallCounts: true,  // Show tool/agent/skill call counts by default (Issue #710)
     callCountsFormat: 'auto',  // Preserve platform-based emoji/ASCII defaults unless explicitly overridden
@@ -850,6 +931,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: false,
     thinkingFormat: 'text',
     apiKeySource: false,
+    account: false,
     hostname: false,
     profile: true,
     missionBoard: false,
@@ -858,6 +940,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,
     showCallCounts: false,
     showLastTool: false,
@@ -894,6 +977,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     thinkingFormat: 'text',
     apiKeySource: false,
+    account: false,
     hostname: false,
     profile: true,
     missionBoard: false,
@@ -902,6 +986,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,
@@ -938,6 +1023,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     thinkingFormat: 'text',
     apiKeySource: true,
+    account: false,
     hostname: false,
     profile: true,
     missionBoard: false,
@@ -946,6 +1032,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,
@@ -982,6 +1069,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     thinkingFormat: 'text',
     apiKeySource: false,
+    account: false,
     hostname: false,
     profile: true,
     missionBoard: false,
@@ -990,6 +1078,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: false,
     showCallCounts: true,
     showLastTool: false,
@@ -1026,6 +1115,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     thinkingFormat: 'text',
     apiKeySource: true,
+    account: false,
     hostname: false,
     profile: true,
     missionBoard: false,
@@ -1034,6 +1124,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     showSessionDuration: true,
     showHealthIndicator: true,
     showTokens: false,
+    showPromptCache: false,
     useBars: true,
     showCallCounts: true,
     showLastTool: false,

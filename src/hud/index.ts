@@ -35,6 +35,7 @@ import { getUsage, getSubscriptionInfo } from "./usage-api.js";
 import { executeCustomProvider } from "./custom-rate-provider.js";
 import { render } from "./render.js";
 import { detectApiKeySource } from "./elements/api-key-source.js";
+import { parseOfficialPromptCache } from "./prompt-cache-stdin.js";
 import { refreshMissionBoardState } from "./mission-board.js";
 import { sanitizeOutput } from "./sanitize.js";
 import { estimatePayloadFromTranscriptPath } from "./payload-estimate.js";
@@ -536,6 +537,8 @@ async function mainImpl(watchMode = false, skipInit = false): Promise<void> {
       sessionHealth: await calculateSessionHealth(sessionStart, contextPercent),
       lastRequestTokenUsage: transcriptData.lastRequestTokenUsage || null,
       sessionTotalTokens: transcriptData.sessionTotalTokens ?? null,
+      promptCache: transcriptData.promptCache ?? null,
+      promptCacheOfficial: parseOfficialPromptCache(stdin),
       omcVersion,
       updateAvailable,
       omcUpdateSource,

@@ -427,6 +427,59 @@ describe("plan output configuration", () => {
   });
 });
 
+describe("loadConfig() — Exa MCP server enablement", () => {
+  const keys = ["EXA_API_KEY", "XDG_CONFIG_HOME", "APPDATA"] as const;
+  let saved: Record<string, string | undefined>;
+  let originalCwd: string;
+  let tempDir: string;
+
+  beforeEach(() => {
+    saved = saveAndClear(keys);
+    originalCwd = process.cwd();
+    tempDir = mkdtempSync(join(tmpdir(), "omc-exa-config-"));
+    process.env.XDG_CONFIG_HOME = join(tempDir, "xdg");
+    process.env.APPDATA = join(tempDir, "xdg");
+    require("node:fs").mkdirSync(join(tempDir, ".claude"), { recursive: true });
+    process.chdir(tempDir);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    restore(saved);
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const writeProject = (mcpServers: unknown) =>
+    writeFileSync(join(tempDir, ".claude", "omc.jsonc"), JSON.stringify({ mcpServers }));
+
+  it("defaults Exa to disabled when no key exists anywhere", () => {
+    expect(loadConfig().mcpServers?.exa?.enabled).toBe(false);
+  });
+
+  it("enables Exa from EXA_API_KEY", () => {
+    process.env.EXA_API_KEY = "env-key";
+    const exa = loadConfig().mcpServers?.exa;
+    expect(exa).toEqual({ enabled: true, apiKey: "env-key" });
+  });
+
+  it("enables Exa when a config file provides mcpServers.exa.apiKey", () => {
+    writeProject({ exa: { apiKey: "file-k" } });
+    const exa = loadConfig().mcpServers?.exa;
+    expect(exa).toEqual({ enabled: true, apiKey: "file-k" });
+  });
+
+  it("respects an explicit enabled:false next to a file apiKey", () => {
+    writeProject({ exa: { enabled: false, apiKey: "file-k" } });
+    expect(loadConfig().mcpServers?.exa?.enabled).toBe(false);
+  });
+
+  it("respects a file enabled:false even when EXA_API_KEY is set", () => {
+    process.env.EXA_API_KEY = "env-key";
+    writeProject({ exa: { enabled: false } });
+    expect(loadConfig().mcpServers?.exa?.enabled).toBe(false);
+  });
+});
+
 describe("company context configuration", () => {
   let saved: Record<string, string | undefined>;
   let originalCwd: string;
