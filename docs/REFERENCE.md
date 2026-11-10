@@ -1501,7 +1501,7 @@ Configure HUD elements in `~/.claude/settings.json`:
 | `ralph`      | Show ralph loop status                                                                                               | `true`  |
 | `autopilot`  | Show autopilot status                                                                                                | `true`  |
 | `showTokens` | Show transcript-derived token usage (`tok:i1.2k/o340`, plus `r...` reasoning and `s...` session total when reliable) | `false` |
-| `showPromptCache` | Show prompt-cache activity from transcript usage: tokens written and read by the latest request plus the session hit rate (`cache:w1.2k/r45.0k s97%`). The first request of a session reads `new`; a large write with zero reads after that reads `MISS` (cache rebuilt: expired or invalidated) | `false` |
+| `showPromptCache` | Show prompt-cache activity from transcript usage: tokens written and read by the latest request plus the session hit rate (`cache:w1.2k/r45.0k s97%`). The first request of a session reads `new`; after that a write of 4096+ tokens whose read is zero or under half the previous request's prompt reads `MISS` (cache rebuilt: expired or invalidated) | `false` |
 
 Additional `omcHud` layout and label options (top-level):
 

@@ -70,13 +70,20 @@ function usageOf(
   session: { input: number; write: number; read: number },
   turns: number,
   complete = true,
+  previousPromptTokens?: number,
 ): PromptCacheUsage {
   const turn = (t: { input: number; write: number; read: number }) => ({
     inputTokens: t.input,
     cacheCreationTokens: t.write,
     cacheReadTokens: t.read,
   });
-  return { last: turn(last), session: turn(session), turns, complete };
+  return {
+    last: turn(last),
+    session: turn(session),
+    turns,
+    complete,
+    ...(previousPromptTokens === undefined ? {} : { previousPromptTokens }),
+  };
 }
 
 afterEach(() => {
@@ -156,6 +163,59 @@ describe('renderPromptCache', () => {
     expect(out).not.toContain('new');
   });
 
+  it('marks an expiry where a shared prefix is still read as MISS (real shape: prev r=140795, latest w=114592 r=28943)', () => {
+    const out = stripAnsi(
+      renderPromptCache(
+        usageOf(
+          { input: 1, write: 114_592, read: 28_943 },
+          { input: 40, write: 300_000, read: 1_200_000 },
+          36,
+          true,
+          140_800,
+        ),
+      ) ?? '',
+    );
+    expect(out).toContain('cache:w114.6k/r28.9k MISS');
+  });
+
+  it('marks a mid-session invalidation (read falls from 772592 to 33635 with w=745749) as MISS', () => {
+    const out = stripAnsi(
+      renderPromptCache(
+        usageOf({ input: 1, write: 745_749, read: 33_635 }, { input: 9, write: 900_000, read: 5_000_000 }, 197, true, 772_600),
+      ) ?? '',
+    );
+    expect(out).toContain('MISS');
+  });
+
+  it('does not call big new content on a grown cache read a miss (w=279717 r=220529)', () => {
+    const out = stripAnsi(
+      renderPromptCache(
+        usageOf({ input: 1, write: 279_717, read: 220_529 }, { input: 9, write: 400_000, read: 900_000 }, 87, true, 230_000),
+      ) ?? '',
+    );
+    expect(out).not.toContain('MISS');
+  });
+
+  it('keeps a read of exactly half the previous prompt a hit, and one token less a miss', () => {
+    const half = stripAnsi(
+      renderPromptCache(usageOf({ input: 0, write: 9_000, read: 50_000 }, { input: 0, write: 20_000, read: 60_000 }, 3, true, 100_000)) ?? '',
+    );
+    expect(half).not.toContain('MISS');
+    const below = stripAnsi(
+      renderPromptCache(usageOf({ input: 0, write: 9_000, read: 49_999 }, { input: 0, write: 20_000, read: 60_000 }, 3, true, 100_000)) ?? '',
+    );
+    expect(below).toContain('MISS');
+  });
+
+  it('does not flag a read drop with a write under the minimum cacheable size', () => {
+    const out = stripAnsi(
+      renderPromptCache(
+        usageOf({ input: 1, write: PROMPT_CACHE_MISS_MIN_WRITE_TOKENS - 1, read: 10_000 }, { input: 1, write: 20_000, read: 60_000 }, 3, true, 100_000),
+      ) ?? '',
+    );
+    expect(out).not.toContain('MISS');
+  });
+
   it('uses the shared token formatter for very large numbers', () => {
     const out = stripAnsi(
       renderPromptCache(
@@ -197,7 +257,65 @@ describe('HUD transcript prompt-cache plumbing', () => {
       session: { inputTokens: 8, cacheCreationTokens: 21_000, cacheReadTokens: 20_000 },
       turns: 2,
       complete: true,
+      previousPromptTokens: 20_003,
     });
+  });
+
+  it('tracks the previous request prompt size across content-block lines of the latest request', async () => {
+    const transcriptPath = createTempTranscript([
+      assistantLine('msg_1', { input: 3, write: 20_000, read: 0 }),
+      assistantLine('msg_2', { input: 5, write: 1_000, read: 20_000 }),
+      assistantLine('msg_2', { input: 5, write: 1_000, read: 20_000 }),
+    ]);
+
+    const result = await parseTranscript(transcriptPath);
+
+    expect(result.promptCache?.turns).toBe(2);
+    expect(result.promptCache?.previousPromptTokens).toBe(20_003);
+  });
+
+  it('flags the 0d883015 shape (prev r=140795, latest w=114592 r=28943) end to end', async () => {
+    const transcriptPath = createTempTranscript([
+      assistantLine('msg_1', { input: 1, write: 2_000, read: 140_795 }),
+      assistantLine('msg_2', { input: 1, write: 114_592, read: 28_943 }),
+    ]);
+
+    const result = await parseTranscript(transcriptPath);
+
+    expect(stripAnsi(renderPromptCache(result.promptCache) ?? '')).toContain('MISS');
+  });
+
+  it('ignores sidechain (subagent) entries interleaved into the transcript', async () => {
+    const transcriptPath = createTempTranscript([
+      assistantLine('msg_1', { input: 3, write: 20_000, read: 0 }),
+      assistantLine('msg_2', { input: 4, write: 900, read: 20_000 }),
+      assistantLine('msg_sub', { input: 2, write: 15_000, read: 0 }, { }),
+    ].map((line, i) => (i === 2 ? { ...line, isSidechain: true } : line)));
+
+    const result = await parseTranscript(transcriptPath);
+
+    expect(result.promptCache?.turns).toBe(2);
+    expect(result.promptCache?.last.cacheReadTokens).toBe(20_000);
+    expect(stripAnsi(renderPromptCache(result.promptCache) ?? '')).not.toContain('MISS');
+  });
+
+  it('marks a tail-read transcript incomplete so its first request is not shown as new', async () => {
+    const filler = 'x'.repeat(1024);
+    const padding = Array.from({ length: 4 * 1024 + 64 }, (_, i) => ({
+      type: 'user',
+      sessionId: 'session-a',
+      message: { content: `${i}-${filler}` },
+    }));
+    const transcriptPath = createTempTranscript([
+      ...padding,
+      assistantLine('msg_tail', { input: 3, write: 21_000, read: 0 }),
+    ]);
+
+    const result = await parseTranscript(transcriptPath);
+
+    expect(result.promptCache?.turns).toBe(1);
+    expect(result.promptCache?.complete).toBe(false);
+    expect(stripAnsi(renderPromptCache(result.promptCache) ?? '')).not.toContain('new');
   });
 
   it('counts one request once when its content blocks are written as several lines', async () => {

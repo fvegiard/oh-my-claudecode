@@ -224,7 +224,7 @@ Controls the call-count badge icon style:
 Opt-in (default `false`). Shows prompt-cache activity parsed from the transcript's per-message usage:
 - `cache:w1.2k/r45.0k s97%`: tokens written to / read from the cache by the latest request, then the session hit rate (read / (read + written + uncached input))
 - `cache:w21.0k/r0 new`: first request of a session, which writes the cache by design (not a miss)
-- `cache:w48.0k/r0 MISS s83%`: the latest request wrote 4096 or more tokens and read none after the first request, so the cache was rebuilt (expired or invalidated)
+- `cache:w48.0k/r0 MISS s83%`: after the first request, the latest request wrote 4096 or more tokens and its read was zero or under half the previous request's prompt (a shared system/tools prefix can stay cached, so a rebuild can still read some tokens), so the cache was rebuilt (expired or invalidated; also after a model switch or compaction)
 
 Nothing is shown until the transcript has usage data. Colour (green, yellow, red) is secondary; the `new` and `MISS` words carry the signal.
 

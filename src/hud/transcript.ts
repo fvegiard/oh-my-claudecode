@@ -511,7 +511,7 @@ function processEntry(
   }
 
   const cacheTurn = extractPromptCacheTurn(entry.message?.usage);
-  if (cacheTurn) {
+  if (cacheTurn && entry.isSidechain !== true) {
     recordPromptCacheTurn(result, cacheTurn, entry.message?.id, sessionTokenTotals);
   }
 
@@ -827,6 +827,8 @@ interface TranscriptUsage {
 
 interface TranscriptEntry {
   sessionId?: string;
+  /** True for subagent entries; they run their own prompt and cache, so they are not the main session's requests. */
+  isSidechain?: boolean;
   timestamp?: string;
   message?: {
     // Claude Code writes assistant/user messages with either a content-block
@@ -951,6 +953,8 @@ function recordPromptCacheTurn(
     previous.session.inputTokens += turn.inputTokens;
     previous.session.cacheCreationTokens += turn.cacheCreationTokens;
     previous.session.cacheReadTokens += turn.cacheReadTokens;
+    previous.previousPromptTokens =
+      previous.last.inputTokens + previous.last.cacheCreationTokens + previous.last.cacheReadTokens;
     previous.last = turn;
     previous.turns += 1;
   }

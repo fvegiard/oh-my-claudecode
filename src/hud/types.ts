@@ -179,6 +179,8 @@ export interface PromptCacheUsage {
   turns: number;
   /** False when only the tail of a large transcript was read, so `turns` and `session` are partial. */
   complete: boolean;
+  /** Prompt size (uncached + written + read tokens) of the request before `last`; absent when `last` is the first request seen. */
+  previousPromptTokens?: number;
 }
 
 export interface TranscriptData {
