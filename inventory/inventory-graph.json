@@ -6,14 +6,14 @@
     "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
     "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
     "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-    "sourceSha256": "b06a96d51fe7d6deb7ce92f2e4d8bc603e7fbcac605767528ddd26b7cd4fd244",
+    "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
     "generatedAt": null,
     "generator": "scripts/generate-inventory-graph.mjs"
   },
   "base": "05c800f40d1ad53b42a78609d2667ef4f726808b",
   "planningHead": "0a91273e61dbbd47eb0af4c02844409251e08398",
   "head": "213ef35d71aa64359d63abdff5bc81b91d70c13c",
-  "sourceSha256": "b06a96d51fe7d6deb7ce92f2e4d8bc603e7fbcac605767528ddd26b7cd4fd244",
+  "sourceSha256": "25f26721c65bce749b5bff29c77484028b5b45a388431131bdc75980008ac13a",
   "counts": {
     "public": {
       "skills": 84,
@@ -28,8 +28,8 @@
       "toolFiles": 65,
       "libFiles": 49,
       "templateHooks": 25,
-      "srcFiles": 1443,
-      "total": 1468
+      "srcFiles": 1446,
+      "total": 1471
     },
     "generated": {
       "distFiles": 5639,
@@ -7352,6 +7352,11 @@
         "id": ".omx/plans/source-overall-cleanup/ownership-matrix.md",
         "kind": "other",
         "path": ".omx/plans/source-overall-cleanup/ownership-matrix.md"
+      },
+      {
+        "id": ".secret-scan-allowlist",
+        "kind": "other",
+        "path": ".secret-scan-allowlist"
       },
       {
         "id": "AGENTS.md",
@@ -42399,6 +42404,11 @@
         "path": "src/cli/__tests__/cli-boot.test.ts"
       },
       {
+        "id": "src/cli/__tests__/config-display.test.ts",
+        "kind": "src",
+        "path": "src/cli/__tests__/config-display.test.ts"
+      },
+      {
         "id": "src/cli/__tests__/doctor-plugin-dir.test.ts",
         "kind": "src",
         "path": "src/cli/__tests__/doctor-plugin-dir.test.ts"
@@ -42702,6 +42712,11 @@
         "id": "src/cli/commands/wait.ts",
         "kind": "src",
         "path": "src/cli/commands/wait.ts"
+      },
+      {
+        "id": "src/cli/config-display.ts",
+        "kind": "src",
+        "path": "src/cli/config-display.ts"
       },
       {
         "id": "src/cli/graph.ts",
@@ -46017,6 +46032,11 @@
         "id": "src/mcp/__tests__/prompt-injection.test.ts",
         "kind": "src",
         "path": "src/mcp/__tests__/prompt-injection.test.ts"
+      },
+      {
+        "id": "src/mcp/__tests__/servers.test.ts",
+        "kind": "src",
+        "path": "src/mcp/__tests__/servers.test.ts"
       },
       {
         "id": "src/mcp/__tests__/standalone-listtools.test.ts",
@@ -61011,6 +61031,36 @@
         "kind": "imports"
       },
       {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "external:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "external:os",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "external:path",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "src/cli/config-display.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/__tests__/config-display.test.ts",
+        "to": "src/cli/index.ts",
+        "kind": "imports"
+      },
+      {
         "from": "src/cli/__tests__/doctor-plugin-dir.test.ts",
         "to": "external:path",
         "kind": "imports"
@@ -62963,6 +63013,11 @@
       {
         "from": "src/cli/index.ts",
         "to": "src/cli/commands/wait.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/cli/index.ts",
+        "to": "src/cli/config-display.ts",
         "kind": "imports"
       },
       {
@@ -79256,6 +79311,36 @@
         "kind": "imports"
       },
       {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "external:fs",
+        "kind": "imports"
+      },
+      {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "external:os",
+        "kind": "imports"
+      },
+      {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "external:path",
+        "kind": "imports"
+      },
+      {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "external:vitest",
+        "kind": "imports"
+      },
+      {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "src/config/loader.ts",
+        "kind": "imports"
+      },
+      {
+        "from": "src/mcp/__tests__/servers.test.ts",
+        "to": "src/mcp/servers.ts",
+        "kind": "imports"
+      },
+      {
         "from": "src/mcp/__tests__/standalone-listtools.test.ts",
         "to": "external:vitest",
         "kind": "imports"
@@ -92112,12 +92197,12 @@
       }
     ],
     "stats": {
-      "nodeCount": 8240,
-      "edgeCount": 8742,
-      "importEdgeCount": 7297,
+      "nodeCount": 8244,
+      "edgeCount": 8755,
+      "importEdgeCount": 7310,
       "registerEdgeCount": 105
     }
   },
-  "inventorySha256": "e8d894615d717d236e2b67bd7384ef03d3b904ee36aa6fec4fdfb78f835a913e",
-  "manifestSha256": "dc74601f4be0f70b43e1cf8a4f3ec7279594d6dad43f08324763ff43f5b882c5"
+  "inventorySha256": "2781bbf45576978c2af8ec86c86256595d69e5823e4441f9905cac57ff0aa610",
+  "manifestSha256": "838c158f5ec71c3ffccece9638a70c27f9e09b3480964f0d76a4a9d51887fbff"
 }
