@@ -5,7 +5,7 @@ Upstream: https://github.com/Yeachan-Heo/oh-my-claudecode. This fork is what Fra
 ## Branches
 | Branch | What it holds | Who moves it |
 |--------|---------------|--------------|
-| `main` | Exact mirror of upstream `main`, fast-forward only, never committed to (commit to a `fork/*` or `fix/*` branch for `dev` instead) | `gh repo sync fvegiard/oh-my-claudecode -b main` |
+| `main` | Mirror upstream `main` by fast-forward only; commit to a `fork/*` or `fix/*` branch for `dev` instead. Checked 2026-11-08: fork `0564555b63df`, upstream `19e6daa3647e`; sync is pending. | `gh repo sync fvegiard/oh-my-claudecode -b main` |
 | `dev` | `main` plus this fork's changes; every change lands here by PR, upstream CI (`CI`, `Upgrade Test`) runs on it | PRs from `fork/*` or `fix/*` branches; merge `main` into it after each sync |
 | `stable` | What the machines install: `claude plugin marketplace add "https://github.com/fvegiard/oh-my-claudecode.git#stable"` | PR `dev` → `stable` once the 5-day rule below is met |
 

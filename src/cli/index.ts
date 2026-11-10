@@ -17,6 +17,7 @@ import chalk from 'chalk';
 import { join } from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { getClaudeConfigDir } from '../utils/config-dir.js';
+import { getConfigWarnings, redactSensitiveConfig } from './config-display.js';
 import { OMC_PLUGIN_ROOT_ENV } from '../lib/env-vars.js';
 import {
   loadConfig,
@@ -245,13 +246,11 @@ Examples:
       const warnings: string[] = [];
       const errors: string[] = [];
 
-      if (!process.env.ANTHROPIC_API_KEY) {
-        warnings.push('ANTHROPIC_API_KEY environment variable not set');
-      }
-
-      if (config.mcpServers?.exa?.enabled && !process.env.EXA_API_KEY && !config.mcpServers.exa.apiKey) {
-        warnings.push('Exa is enabled but EXA_API_KEY is not set');
-      }
+      warnings.push(...getConfigWarnings(
+        config,
+        process.env,
+        process.platform === 'darwin' || existsSync(join(getClaudeConfigDir(), '.credentials.json')),
+      ));
 
       if (errors.length > 0) {
         console.log(chalk.red('Errors:'));
@@ -271,7 +270,7 @@ Examples:
     }
 
     console.log(chalk.blue('Current configuration:\n'));
-    console.log(JSON.stringify(config, null, 2));
+    console.log(JSON.stringify(redactSensitiveConfig(config), null, 2));
   });
 
 /**
