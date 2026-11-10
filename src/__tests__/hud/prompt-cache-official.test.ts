@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '../../hud/render.js';
 import { resetContextDisplayState } from '../../hud/elements/context.js';
@@ -452,7 +452,14 @@ describe('official prompt cache through the composed HUD renderer', () => {
     },
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders the official segment only when showPromptCache is true', async () => {
+    // The sample's expires_at is a fixed epoch; pin the clock so the TTL stays warm.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW_MS);
     const on = strip(await render(createContext(officialOf()), config(true)));
     const off = strip(await render(createContext(officialOf()), config(false)));
     expect(on).toMatch(/cache:w1\.8k\/r109\.0k 99% miss:1 ttl:\d+[mh]/);
