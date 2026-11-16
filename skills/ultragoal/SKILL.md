@@ -29,8 +29,8 @@ Claude Code `/goal` is a session-scoped Stop hook: it blocks the session from st
 <How_To_Use>
 
 On plugin-only installs where `omc` is not on `PATH`, replace the `omc` prefix in
-the commands below and in generated handoffs with `oh-my-claudecode.js`, or use
-`node <plugin-root>/bin/oh-my-claudecode.js`.
+the commands below and in generated handoffs with
+`node <plugin-root>/bridge/cli.cjs` (this branch ships no top-level `bin/`).
 
 1. Create a plan from a brief:
    ```
