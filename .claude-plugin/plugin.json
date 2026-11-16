@@ -65,6 +65,7 @@
     "./skills/models/",
     "./skills/omc-doctor/",
     "./skills/omc-setup/",
+    "./skills/omc-tools/",
     "./skills/personal-mode/",
     "./skills/plan/",
     "./skills/pr/",
