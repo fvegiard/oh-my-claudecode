@@ -809,5 +809,191 @@ describe("jev advisory points: opt-in actions", () => {
       expect(read(ralphPath)).toMatchObject({ active: true });
       expect(read(autopilotPath)).toMatchObject({ active: true, reinforcement_count: 1 });
     }, 20000);
+
+    it("flushes deferred Ralph rows on orphan-parent releases", async () => {
+      const readAppliedRows = () => {
+        const logPath = join(cwd, "jev-logs", "applied.jsonl");
+        return (existsSync(logPath) ? readFileSync(logPath, "utf8").split("\n") : [])
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as { point: string; applied?: Record<string, unknown> })
+          .filter((row) => row.point === "loop-continuation");
+      };
+      const sessionId = "sess-release-orphan-parent";
+      // Create a Ralph state that will be released by Jev
+      const ralphPath = write(sessionId, "ralph-state.json", state("ralph", sessionId));
+      // Create an orphaned autopilot state with only the routing echo (will be deleted as orphan)
+      // The state must have a prompt that matches the routing echo pattern to be considered orphaned
+      const autopilotPath = write(
+        sessionId,
+        "autopilot-state.json",
+        state("autopilot", sessionId, {
+          phase: undefined,
+          current_phase: undefined,
+          prompt: "[MAGIC KEYWORDS DETECTED: AUTOPILOT]",
+        }),
+      );
+      noul.task_complete = 0.95;
+
+      const output = await stop(sessionId, { OMC_JEV_LOOP_RELEASE_ONLY: "1", OMC_JEV_APPLIED_LOG: "1" });
+      expect(output).toMatchObject({ continue: true, suppressOutput: true });
+      // Orphan autopilot should be deleted
+      expect(existsSync(autopilotPath)).toBe(false);
+      // Ralph should still exist and have been released
+      expect(read(ralphPath)).toMatchObject({ active: true, iteration: 2 });
+
+      // Verify the deferred Ralph release row was flushed before the orphan was deleted
+      const appliedRows = readAppliedRows();
+      expect(appliedRows.length).toBeGreaterThan(0);
+      expect(appliedRows[appliedRows.length - 1].applied).toMatchObject({
+        mode: "ralph",
+        block: { from: true, to: false },
+      });
+    }, 20000);
+
+    it("writes the applied-log row for a standalone Ralph at-limit release", async () => {
+      const readAppliedRows = () => {
+        const logPath = join(cwd, "jev-logs", "applied.jsonl");
+        return (existsSync(logPath) ? readFileSync(logPath, "utf8").split("\n") : [])
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as { point: string; applied?: Record<string, unknown> })
+          .filter((row) => row.point === "loop-continuation");
+      };
+      const sessionId = "sess-release-ralph-at-limit";
+      // Create a Ralph state at iteration === max_iterations (at-limit)
+      const path = write(sessionId, "ralph-state.json", state("ralph", sessionId, { iteration: 5, max_iterations: 5 }));
+      noul.task_complete = 0.95;
+
+      const output = await stop(sessionId, { OMC_JEV_LOOP_RELEASE_ONLY: "1", OMC_JEV_APPLIED_LOG: "1" });
+      expect(output).not.toHaveProperty("decision");
+      expect(output).toMatchObject({ continue: true, suppressOutput: true });
+      expect(String(output.systemMessage)).toContain("[JEV-COMPLETION]");
+
+      // Verify the applied-log row was written for the at-limit release
+      const appliedRows = readAppliedRows();
+      expect(appliedRows.length).toBeGreaterThan(0);
+      expect(appliedRows[appliedRows.length - 1].applied).toMatchObject({
+        mode: "ralph",
+        block: { from: true, to: false },
+      });
+    }, 20000);
+  });
+
+  describe("intent (OMC_JEV_INTENT_APPLY)", () => {
+    function input(prompt: string) {
+      return { prompt, cwd, session_id: "test-sess-intent" };
+    }
+
+    async function detectIntent(prompt: string, extra: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+      const result = await runScript("keyword-detector.mjs", input(prompt), { ...env, ...extra }, cwd);
+      expect(result.exitCode, result.stderr).toBe(0);
+      return result;
+    }
+
+    it("without the variable the heuristic decides, whatever the active answer says", async () => {
+      const intentPrompt =
+        "Our support team is seeing a pattern where users from certain time zones cannot schedule meetings. " +
+        "They report seeing an error about 'invalid time' even though the time is valid. " +
+        "This affects a subset of our customer base and needs investigation.";
+      const otherPrompt = "Fix the typo in the README.";
+
+      noul.intent = 0.99;
+      let result = await detectIntent(intentPrompt, { OMC_JEV: "intent:active" });
+      expect(result.stdout).not.toContain("intent");
+      expect(requests.map((r) => r.questions[0])).toContain("intent");
+
+      requests.length = 0;
+      noul.intent = 0.01;
+      result = await detectIntent(otherPrompt, { OMC_JEV: "intent:active" });
+      expect(result.stdout).not.toContain("intent");
+      expect(requests.length).toBeGreaterThan(0);
+    }, 30000);
+
+    it("with the variable an active answer at 0.5 or above invokes the intent skill", async () => {
+      const intentPrompt =
+        "The payment processing endpoint started returning 503 errors sporadically. " +
+        "We cannot process charges, affecting revenue. We need to understand the root cause.";
+
+      const apply = { OMC_JEV: "intent:active", OMC_JEV_INTENT_APPLY: "1" };
+      noul.intent = 0.8;
+      let result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).toContain("intent");
+
+      requests.length = 0;
+      noul.intent = 0.49;
+      result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).not.toContain("intent");
+
+      requests.length = 0;
+      noul.intent = 0.5;
+      result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).toContain("intent");
+    }, 45000);
+
+    it("with the variable a boolean true answer invokes the intent skill", async () => {
+      const intentPrompt =
+        "Checkout fails for customers paying in euros. We need to find out why before Friday.";
+      const apply = { OMC_JEV: "intent:active", OMC_JEV_INTENT_APPLY: "1" };
+
+      rawAnswer = { type: "noul", noul: true, confidence: 0.9 };
+      let result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).toContain("intent");
+
+      rawAnswer = { type: "noul", noul: false, confidence: 0.9 };
+      result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).not.toContain("intent");
+    }, 30000);
+
+    it("keywordDetector.disabled keeps intent off even with a positive active answer", async () => {
+      const intentPrompt =
+        "Invoices are emailed twice to some customers. We need to understand the cause.";
+      const apply = { OMC_JEV: "intent:active", OMC_JEV_INTENT_APPLY: "1" };
+      noul.intent = 0.99;
+
+      let result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).toContain("intent");
+
+      mkdirSync(join(cwd, ".claude"), { recursive: true });
+      writeFileSync(
+        join(cwd, ".claude", "omc.jsonc"),
+        JSON.stringify({ keywordDetector: { disabled: ["intent"] } }),
+      );
+      result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).not.toContain("intent");
+    }, 30000);
+
+    it("shadow mode and a degraded call keep the heuristic", async () => {
+      const intentPrompt =
+        "We have a data inconsistency issue where the user profile cache and the database don't sync. " +
+        "This is causing user-facing bugs.";
+
+      noul.intent = 0.99;
+      shadowRuns += 1;
+      let result = await detectIntent(intentPrompt, {
+        OMC_JEV: "intent",
+        OMC_JEV_INTENT_APPLY: "1",
+      });
+      expect(result.stdout).not.toContain("intent");
+
+      requests.length = 0;
+      const degraded = {
+        OMC_JEV: "intent:active",
+        OMC_JEV_INTENT_APPLY: "1",
+        OMC_JEV_ENDPOINT: "http://127.0.0.1:9",
+      };
+      result = await detectIntent(intentPrompt, degraded);
+      expect(result.stdout).not.toContain("intent");
+    }, 45000);
+
+    it("an HTTP error keeps the heuristic even with the variable", async () => {
+      const intentPrompt =
+        "The API response times have increased significantly over the past week. " +
+        "Customers are experiencing timeouts.";
+
+      noul.intent = 0.99;
+      status = 500;
+      const apply = { OMC_JEV: "intent:active", OMC_JEV_INTENT_APPLY: "1" };
+      const result = await detectIntent(intentPrompt, apply);
+      expect(result.stdout).not.toContain("intent");
+    }, 30000);
   });
 });

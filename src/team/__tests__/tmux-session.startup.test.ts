@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { WorkerLaunchAttempt } from '../worker-launch-ack.js';
 import { currentStrictProcessStartIdentity } from '../team-owner-epoch.js';
@@ -53,6 +55,8 @@ vi.mock('../../platform/process-utils.js', async importOriginal => ({
 const tmuxState = vi.hoisted(() => ({
   args: [] as string[][],
   captures: [] as Array<string | Error>,
+  captureAt: null as (() => string) | null,
+  sendTimes: [] as number[],
   paneStatus: '0 cmd\n',
   paneMode: '0\n',
   ownedPaneIds: '%2\n',
@@ -74,6 +78,7 @@ vi.mock('../../cli/tmux-utils.js', async importOriginal => {
       if (command === 'capture-pane') {
         if (commandIndex === 2) tmuxState.args.push(args.slice(commandIndex));
         if (tmuxState.captureError) throw tmuxState.captureError;
+        if (tmuxState.captureAt) return { stdout: tmuxState.captureAt(), stderr: '' };
         const next = tmuxState.captures.length > 1 ? tmuxState.captures.shift() : tmuxState.captures[0];
         if (next instanceof Error) throw next;
         return { stdout: next ?? '', stderr: '' };
@@ -194,6 +199,7 @@ vi.mock('../../cli/tmux-utils.js', async importOriginal => {
         const syntheticArgs = words.slice(0, words.indexOf('display-message'));
         if (nativeCommand === 'send-keys') {
           tmuxState.args.push(syntheticArgs);
+          tmuxState.sendTimes.push(Date.now());
           if (syntheticArgs.includes('-l')) {
             const commandText = syntheticArgs[syntheticArgs.indexOf('-l') + 1] ?? '';
             const descriptorMatch = commandText.match(/OMC_WORKER_LAUNCH_SPEC_FILE='([^']+)'/);
@@ -330,6 +336,8 @@ function restoreFixtureEnv(): void {
 beforeEach(() => {
   tmuxState.args = [];
   tmuxState.captures = [];
+  tmuxState.captureAt = null;
+  tmuxState.sendTimes = [];
   tmuxState.paneStatus = '0 cmd\n';
   tmuxState.paneMode = '0\n';
   tmuxState.ownedPaneIds = '%2\n';
@@ -391,6 +399,30 @@ async function acceptedContext(provider: StartupPaneContext['provider']): Promis
   }), 'utf8');
   await awaitWorkerLaunchAcknowledgement(attempt, { timeoutMs: 100, pollIntervalMs: 5 });
   return { ownership: ownership(), attempt, provider };
+}
+
+async function markProviderExited(attempt: WorkerLaunchAttempt): Promise<void> {
+  const expected = JSON.parse(await readFile(attempt.expectedPath, 'utf8')) as Record<string, unknown>;
+  const processIdentity = {
+    pid: 999_999,
+    process_start_identity: process.platform === 'darwin' ? 'darwin:1:0' : `${process.platform}:1`,
+    process_group_id: 999_999,
+  };
+  await writeFile(attempt.startedPath, JSON.stringify({
+    ...expected,
+    kind: 'worker_launch_provider_started',
+    ...processIdentity,
+    written_at: new Date().toISOString(),
+  }));
+  await writeFile(`${attempt.startedPath}.terminal`, JSON.stringify({
+    ...expected,
+    kind: 'worker_launch_provider_terminal',
+    outcome: 'exit',
+    cleanup_verified: true,
+    child_reaped: true,
+    ...processIdentity,
+    written_at: new Date().toISOString(),
+  }));
 }
 
 describe('worker pane startup safety', () => {
@@ -837,6 +869,7 @@ describe('worker pane startup safety', () => {
       const context = await acceptedContext('claude');
       tmuxState.captures = [
         `${question}\n❯ No, exit\n  ${affirmativeChoice}\n`,
+        `${question}\n  No, exit\n❯ ${affirmativeChoice}\n`,
         '❯ ready\n',
       ];
 
@@ -856,6 +889,161 @@ describe('worker pane startup safety', () => {
       expect(inboxIndex).toBeGreaterThan(confirmYesIndex);
     },
   );
+
+  strictTmuxIt('presses Enter in Claude Code’s trust dialog only once the pane shows the affirmative choice focused', async () => {
+    const context = await acceptedContext('claude');
+    const question = 'Quick safety check: Is this a project you created or one you trust?';
+    const frames = {
+      no: `${question}\n❯ No, exit\n  Yes, I trust this folder\n`,
+      yes: `${question}\n  No, exit\n❯ Yes, I trust this folder\n`,
+      declined: `${question}\n❯ No, exit\n  Yes, I trust this folder\nClaude Code didn't start because this folder isn't trusted.\n`,
+      trusted: '❯ \n',
+    };
+    // Hypothesis fitting the recorded failures: a busy Claude Code startup
+    // reads the keys sent between two captures together and applies them
+    // against the focus it drew before them.
+    let focus: keyof typeof frames = 'no';
+    let applied = 0;
+    tmuxState.captureAt = () => {
+      const keys = tmuxState.args.slice(applied)
+        .filter(args => args[0] === 'send-keys' && !args.includes('-l'))
+        .map(args => args.at(-1));
+      applied = tmuxState.args.length;
+      const drawn = focus;
+      for (const key of drawn === 'no' || drawn === 'yes' ? keys : []) {
+        if (key === 'Enter') {
+          focus = drawn === 'yes' ? 'trusted' : 'declined';
+          break;
+        }
+        if (key === 'Down') focus = 'yes';
+      }
+      return frames[focus];
+    };
+
+    await expect(deliverStartupInbox(context, 'Read inbox.md, execute now.')).resolves.toEqual({
+      ok: true,
+      kind: 'attempted_unconfirmed',
+    });
+    expect(focus).toBe('trusted');
+  });
+
+  strictTmuxIt('sends Down again when the first Down after the dialog draws is dropped', async () => {
+    const context = await acceptedContext('claude');
+    const question = 'Quick safety check: Is this a project you created or one you trust?';
+    const frames = {
+      no: `${question}\n❯ No, exit\n  Yes, I trust this folder\n`,
+      yes: `${question}\n  No, exit\n❯ Yes, I trust this folder\n`,
+      trusted: '❯ \n',
+    };
+    // Measured on Claude Code 2.1.328: a Down sent right after the dialog
+    // first draws can be dropped. This pane drops the first Down.
+    let focus: keyof typeof frames = 'no';
+    let applied = 0;
+    let downs = 0;
+    tmuxState.captureAt = () => {
+      const keys = tmuxState.args.slice(applied)
+        .filter(args => args[0] === 'send-keys' && !args.includes('-l'))
+        .map(args => args.at(-1));
+      applied = tmuxState.args.length;
+      for (const key of keys) {
+        if (key === 'Down' && ++downs > 1 && focus === 'no') focus = 'yes';
+        if (key === 'Enter' && focus === 'yes') focus = 'trusted';
+      }
+      return frames[focus];
+    };
+
+    await expect(waitForStartupPaneReady(context, { timeoutMs: 3_000, attemptAlreadyFenced: true }))
+      .resolves.toEqual({ ok: true });
+    expect(focus).toBe('trusted');
+    expect(downs).toBe(2);
+  });
+
+  strictTmuxIt('reads the pane once more after answering Claude Code trust at the last poll before the deadline', async () => {
+    const context = await acceptedContext('claude');
+    const question = 'Quick safety check: Is this a project you created or one you trust?';
+    const frames = {
+      no: `${question}\n❯ No, exit\n  Yes, I trust this folder\n`,
+      yes: `${question}\n  No, exit\n❯ Yes, I trust this folder\n`,
+      trusted: '❯ \n',
+    };
+    // The dialog first appears at 29,500 ms of a 30,000 ms wait and takes each key at once.
+    let focus: keyof typeof frames = 'no';
+    let applied = 0;
+    let startedAt = 0;
+    tmuxState.captureAt = () => {
+      for (const args of tmuxState.args.slice(applied)) {
+        if (args[0] !== 'send-keys' || args.includes('-l')) continue;
+        if (args.at(-1) === 'Down' && focus === 'no') focus = 'yes';
+        if (args.at(-1) === 'Enter' && focus === 'yes') focus = 'trusted';
+      }
+      applied = tmuxState.args.length;
+      return Date.now() - startedAt < 29_500 ? 'Starting…\n' : frames[focus];
+    };
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      startedAt = Date.now();
+      const work = waitForStartupPaneReady(context, { timeoutMs: 30_000, pollIntervalMs: 250, attemptAlreadyFenced: true });
+      let settled = false;
+      void work.then(() => { settled = true; }, () => { settled = true; });
+      while (!settled) {
+        if (vi.getTimerCount() > 0) await vi.advanceTimersToNextTimerAsync();
+        else await new Promise(resolveTick => setImmediate(resolveTick));
+      }
+      await expect(work).resolves.toEqual({ ok: true });
+      expect(focus).toBe('trusted');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  strictTmuxIt('sends no key to an answered Claude trust dialog left above a live input prompt', async () => {
+    const context = await acceptedContext('claude');
+    const corpus = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'pane-frames');
+    const answered = readFileSync(join(corpus, 'claude/unversioned/trust-files-then-idle.txt'), 'utf8');
+    // The user pressed Up: the live prompt now shows a history entry.
+    tmuxState.captures = [answered, `${answered.trimEnd()} previous prompt from history\n`];
+
+    await expect(waitForStartupPaneReady(context, { timeoutMs: 3_000, attemptAlreadyFenced: true }))
+      .resolves.toEqual({ ok: false, reason: 'selector_persistent' });
+    expect(tmuxState.args.filter(args => args[0] === 'send-keys')).toEqual([]);
+  });
+
+  strictTmuxIt('sends Down, not Enter, when only a stale line above the live trust dialog shows Yes focused', async () => {
+    const context = await acceptedContext('claude');
+    const live = 'Quick safety check: Is this a project you created or one you trust?\n❯ No, exit\n  Yes, I trust this folder\n';
+    tmuxState.captures = [` ❯ Yes, I trust this folder\n${live}`, '❯ ready\n'];
+
+    await deliverStartupInbox(context, 'Read inbox.md, execute now.');
+    const keys = tmuxState.args.filter(args => args[0] === 'send-keys' && !args.includes('-l')).map(args => args.at(-1));
+    expect(keys[0]).toBe('Down');
+  });
+
+  strictTmuxIt('waits for a new trust dialog below an answered one to draw its choices, then sends Down, then Enter', async () => {
+    const context = await acceptedContext('claude');
+    const corpus = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'pane-frames');
+    const answered = readFileSync(join(corpus, 'claude/2.1.328/trust-yes-focused.txt'), 'utf8');
+    const live = readFileSync(join(corpus, 'claude/2.1.325/trust.txt'), 'utf8');
+    const midDraw = live.slice(0, live.indexOf('Security guide') + 'Security guide'.length);
+    const yesFocused = live.replace('❯ No, exit', '  No, exit').replace('  Yes, I trust this folder', '❯ Yes, I trust this folder');
+    const stages = [`${answered}\n${midDraw}`, `${answered}\n${live}`, `${answered}\n${yesFocused}`];
+    const keysAfterStage: string[][] = stages.map(() => []);
+    let stage = -1;
+    let seen = 0;
+    tmuxState.captureAt = () => {
+      const sent = tmuxState.args.slice(seen).filter(args => args[0] === 'send-keys' && !args.includes('-l')).map(args => String(args.at(-1)));
+      seen = tmuxState.args.length;
+      if (stage >= 0 && stage < stages.length) keysAfterStage[stage]!.push(...sent);
+      stage = Math.min(stage + 1, stages.length);
+      return stages[stage] ?? '❯ ready\n';
+    };
+
+    await expect(deliverStartupInbox(context, 'Read inbox.md, execute now.')).resolves.toEqual({
+      ok: true,
+      kind: 'attempted_unconfirmed',
+    });
+    expect(keysAfterStage).toEqual([[], ['Down'], ['Enter']]);
+  });
 
   strictTmuxIt.each([
     ['Cursor workspace trust', 'Workspace Trust Required\nDo you trust the contents of this directory?\nPass --trust, --yolo, or -f to skip this prompt.\n'],
@@ -1162,4 +1350,136 @@ describe('worker pane startup safety', () => {
     expect(tmuxState.args).toHaveLength(0);
   });
 
+});
+
+describe('startup input after the provider exits to a shell prompt', () => {
+  const message = 'Read inbox.md, execute now.';
+  const sendKeys = () => tmuxState.args.filter(args => args[0] === 'send-keys');
+
+  strictTmuxIt.each(['❯ ', '$ '])('fails fast with provider_exited at a %j shell prompt without typing', async prompt => {
+    const context = await acceptedContext('claude');
+    await markProviderExited(context.attempt);
+    tmuxState.captures = [prompt];
+
+    const startedAt = Date.now();
+    await expect(waitForStartupPaneReady(context, { timeoutMs: 3_000, pollIntervalMs: 1 }))
+      .resolves.toEqual({ ok: false, reason: 'provider_exited' });
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    await expect(deliverStartupInbox(context, message))
+      .resolves.toEqual({ ok: false, reason: 'provider_exited' });
+    expect(sendKeys()).toEqual([]);
+  });
+
+  strictTmuxIt('delivers at the same prompt when provider liveness is unknown', async () => {
+    const context = await acceptedContext('claude');
+    tmuxState.captures = ['❯ '];
+
+    await expect(deliverStartupInbox(context, message))
+      .resolves.toEqual({ ok: true, kind: 'attempted_unconfirmed' });
+    expect(sendKeys().some(args => args.at(-1) === message)).toBe(true);
+  });
+
+  strictTmuxIt('does not resubmit Enter into the shell once the provider has exited', async () => {
+    const context = await acceptedContext('claude');
+    await markProviderExited(context.attempt);
+    tmuxState.captures = [`❯ ${message}\n❯ `];
+
+    await expect(retryStartupInboxSubmit(context, message)).resolves.toBe('unavailable');
+    expect(sendKeys()).toEqual([]);
+  });
+
+  strictTmuxIt('reports a provider-exited pane as dead even when stale busy text remains', async () => {
+    const context = await acceptedContext('codex');
+    await markProviderExited(context.attempt);
+    tmuxState.captures = ['› Read inbox.md\nesc to interrupt\n'];
+
+    await expect(probeStartupPaneActivity(context)).resolves.toBe('dead');
+    expect(sendKeys()).toEqual([]);
+  });
+});
+
+describe('startup readiness wait set by OMC_TEAM_READY_TIMEOUT_MS', () => {
+  const message = 'Read inbox.md, execute now.';
+  const framesRoot = join(__dirname, 'fixtures', 'pane-frames', 'claude');
+  let warnings: string[] = [];
+  let savedReadyTimeout: string | undefined;
+
+  beforeEach(() => {
+    savedReadyTimeout = process.env.OMC_TEAM_READY_TIMEOUT_MS;
+    delete process.env.OMC_TEAM_READY_TIMEOUT_MS;
+    warnings = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    if (savedReadyTimeout === undefined) delete process.env.OMC_TEAM_READY_TIMEOUT_MS;
+    else process.env.OMC_TEAM_READY_TIMEOUT_MS = savedReadyTimeout;
+  });
+
+  // Advance the fake clock only while the code under test sleeps, so file I/O
+  // in the attempt checks never lets the deadline pass early.
+  async function settleOnFakeClock<T>(work: Promise<T>): Promise<T> {
+    let settled = false;
+    void work.then(() => { settled = true; }, () => { settled = true; });
+    while (!settled) {
+      if (vi.getTimerCount() > 0) await vi.advanceTimersToNextTimerAsync();
+      else await new Promise(resolve => setImmediate(resolve));
+    }
+    return work;
+  }
+
+  async function bannerThenIdle(bannerMs: number): Promise<number> {
+    const banner = await readFile(join(framesRoot, 'unversioned', 'startup-banner-bypass.txt'), 'utf8');
+    const idle = await readFile(join(framesRoot, '2.1.325', 'idle.txt'), 'utf8');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const startedAt = Date.now();
+    tmuxState.captureAt = () => (Date.now() - startedAt < bannerMs ? banner : idle);
+    return startedAt;
+  }
+
+  strictTmuxIt('waits out a 40s banner at 60000 and then sends the inbox once', async () => {
+    const context = await acceptedContext('claude');
+    process.env.OMC_TEAM_READY_TIMEOUT_MS = '60000';
+    const startedAt = await bannerThenIdle(40_000);
+
+    await expect(settleOnFakeClock(deliverStartupInbox(context, message)))
+      .resolves.toEqual({ ok: true, kind: 'attempted_unconfirmed' });
+    const literals = tmuxState.args.filter(args => args[0] === 'send-keys' && args.includes('-l'));
+    expect(literals.map(args => args.at(-1))).toEqual([message]);
+    expect(Math.min(...tmuxState.sendTimes) - startedAt).toBeGreaterThanOrEqual(40_000);
+    expect(warnings).toEqual([]);
+  });
+
+  strictTmuxIt.each([
+    [undefined, 30_000, 'OMC_TEAM_READY_TIMEOUT_MS unset (effective 30000ms'],
+    ['abc', 30_000, 'OMC_TEAM_READY_TIMEOUT_MS=abc (effective 30000ms'],
+    ['5000', 30_000, 'OMC_TEAM_READY_TIMEOUT_MS=5000 (effective 30000ms'],
+    ['600000', 120_000, 'OMC_TEAM_READY_TIMEOUT_MS=600000 (effective 120000ms'],
+  ] as const)('times out a banner that never clears at the clamped wait for %j', async (raw, waitMs, note) => {
+    const context = await acceptedContext('claude');
+    if (raw !== undefined) process.env.OMC_TEAM_READY_TIMEOUT_MS = raw;
+    const startedAt = await bannerThenIdle(Number.POSITIVE_INFINITY);
+
+    await expect(settleOnFakeClock(deliverStartupInbox(context, message)))
+      .resolves.toEqual({ ok: false, reason: 'readiness_timeout' });
+    expect(Date.now() - startedAt).toBe(waitMs);
+    expect(tmuxState.args.filter(args => args[0] === 'send-keys')).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(`timed out after ${waitMs}ms`);
+    expect(warnings[0]).toContain(note);
+  });
+
+  strictTmuxIt('reports the wait the caller passed, not one recomputed from the variable', async () => {
+    const context = await acceptedContext('claude');
+    await bannerThenIdle(Number.POSITIVE_INFINITY);
+
+    await expect(settleOnFakeClock(waitForStartupPaneReady(context, { timeoutMs: 50, pollIntervalMs: 1 })))
+      .resolves.toEqual({ ok: false, reason: 'readiness_timeout' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('timed out after 50ms; OMC_TEAM_READY_TIMEOUT_MS unset (effective 50ms;');
+  });
 });
