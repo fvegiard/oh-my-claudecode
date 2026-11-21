@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { getClaudeConfigDir, getUpdateCheckCachePath } from './lib/config-dir.mjs';
 import { resolveOmcStateRoot } from './lib/state-root.mjs';
 import { pathIdentity, publishCacheOccupancy, readOccupiedPluginRoots } from './lib/cache-occupancy.mjs';
+import { loadContextText } from './lib/context-text-loader.mjs';
 
 // Detached update-cache refresh: argv flag and the child's overall deadline.
 const REFRESH_UPDATE_CACHE_FLAG = '--refresh-update-cache';
@@ -690,6 +691,10 @@ function reconcileAbandonedSessionStarts(omcRoot, currentSessionId) {
   }
 }
 
+function projectMemoryFrameEnabled() {
+  return ['1', 'true'].includes(String(process.env.OMC_PROJECT_MEMORY_FRAME ?? '').trim().toLowerCase());
+}
+
 function getRuntimeBaseDir() {
   return process.env.CLAUDE_PLUGIN_ROOT || join(__dirname, '..');
 }
@@ -712,7 +717,11 @@ async function loadProjectMemoryModules() {
     return {
       loadProjectMemory: projectMemoryStorage.loadProjectMemory,
       detectProjectEnvironment: projectMemoryDetector.detectProjectEnvironment,
-      formatContextSummary: projectMemoryFormatter.formatContextSummary,
+      // Opt-in (OMC_PROJECT_MEMORY_FRAME=1 or true): framed summary. Falls back to the bare summary when the
+      // built formatter does not export the framed variant (dist is rebuilt by release, not by feature commits).
+      formatContextSummary: (projectMemoryFrameEnabled()
+        ? projectMemoryFormatter.formatContextSummaryWithFrame
+        : undefined) ?? projectMemoryFormatter.formatContextSummary,
       findProjectRoot: rulesFinder.findProjectRoot,
     };
   } catch {
@@ -809,7 +818,10 @@ async function resolveProjectMemorySummary(directory, projectMemoryModules) {
     return '';
   }
 
-  return formatContextSummary(memory)?.trim() || '';
+  // With the cleaning switch on the formatter writes hot paths and commands exactly (escaped, not cleaned) and fits the summary
+  // by whole lines; a built formatter without the third parameter ignores it and the summary is cleaned as a block below.
+  const summary = contextText ? await formatContextSummary(memory, undefined, contextText) : await formatContextSummary(memory);
+  return summary?.trim() || '';
 }
 
 // Semantic version comparison (for cache cleanup sorting and update checks)
@@ -987,6 +999,29 @@ function compactBudgetedText(text, maxChars) {
   return `${text.slice(0, maxChars - notice.length).trimEnd()}${notice}`;
 }
 
+// Same cut as compactBudgetedText, by whole lines: a line that holds a path or a command stays whole or goes whole, and the
+// closing tag (with the lines after it) of an envelope stays, so the envelope is never left open. Returns null when not even
+// the first line fits, and the caller then writes the omission notice instead of a part of the section.
+function compactBudgetedLines(text, maxChars) {
+  const notice = '...[truncated to preserve SessionStart context budget]';
+  const lines = text.split('\n');
+  const closeIndex = lines.findLastIndex((line) => /^<\/[A-Za-z][\w-]*>$/.test(line));
+  const tailStart = closeIndex > 0 && closeIndex >= lines.length - 4 ? closeIndex : lines.length;
+  const tail = lines.slice(tailStart).map((line) => `\n${line}`).join('');
+  const room = maxChars - notice.length - 1 - tail.length;
+  const kept = [];
+  let length = 0;
+  for (const line of lines.slice(0, tailStart)) {
+    const next = length + (kept.length > 0 ? 1 : 0) + line.length;
+    if (next > room) break;
+    length = next;
+    kept.push(line);
+  }
+  while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop();
+  if (kept.length === 0) return null;
+  return `${kept.join('\n')}\n${notice}${tail}`;
+}
+
 function formatUpdateNoticeForUser(updateInfo, options = {}) {
   const latestVersion = updateInfo?.latestVersion || 'latest';
   const currentVersion = updateInfo?.currentVersion || 'unknown';
@@ -1028,11 +1063,12 @@ function buildSessionStartAdditionalContext(messages) {
     if (used + separator + message.length > budget) {
       const remainingBudget = budget - used - separator;
       if (remainingBudget > 0) {
-        selected.push(
-          remainingBudget > 120
-            ? compactBudgetedText(message, remainingBudget)
-            : compactBudgetedText(sessionStartOmissionNotice(budget), remainingBudget),
-        );
+        // With the text cleaning switch or the memory frame on, the section is cut by whole lines (see compactBudgetedLines);
+        // otherwise by characters, as it always was.
+        const omission = () => compactBudgetedText(sessionStartOmissionNotice(budget), remainingBudget);
+        if (remainingBudget <= 120) selected.push(omission());
+        else if (contextText || projectMemoryFrameEnabled()) selected.push(compactBudgetedLines(message, remainingBudget) ?? omission());
+        else selected.push(compactBudgetedText(message, remainingBudget));
       }
       break;
     }
@@ -1496,16 +1532,41 @@ async function jevCompactionAfterSessionStart(data, logDirOf) {
   if (!(process.env.OMC_JEV || '').includes('compaction')) return {};
   try {
     const { afterSessionStart } = await import(pathToFileURL(join(__dirname, 'lib', 'jev-compaction-state.mjs')).href);
-    return afterSessionStart(data, { logDir: process.env.OMC_JEV_LOG_DIR || logDirOf() }) || {};
+    return afterSessionStart(data, { logDir: process.env.OMC_JEV_LOG_DIR || logDirOf(), writers: contextText ?? undefined }) || {};
   } catch {
     return {};
   }
 }
 
+/**
+ * Jev delivery guard (scripts/lib/jev-delivery-guard.mjs). Loaded only when OMC_JEV_GUARD is 1 or
+ * true; records the session's baseline and returns a message when the pre-tool-enforcer timeout is
+ * too short for Jev. Any failure leaves session start unchanged.
+ */
+async function jevDeliveryGuardAtSessionStart(data) {
+  if (!['1', 'true'].includes(String(process.env.OMC_JEV_GUARD ?? '').trim().toLowerCase())) return null;
+  try {
+    const { startSession } = await import(pathToFileURL(join(__dirname, 'lib', 'jev-delivery-guard.mjs')).href);
+    return startSession(data);
+  } catch {
+    return null;
+  }
+}
+
 // Main
+// Opt-in text cleaning (OMC_CONTEXT_TEXT_SANITIZE=1 or true): the context read from state files, notepad and project memory is
+// cleaned only when the switch is on. main() loads the module; with the switch off the text passes unchanged.
+let contextText = null;
+const cleanBlock = (text) => (contextText ? contextText.cleanTextBlock(text) : text);
+const cleanHost = (text, max) => (contextText ? contextText.cleanHostText(text, max) : text);
+// The messages for the user (systemMessage): the parts are cleaned one by one, because the context carries envelopes whose tags a
+// block-wide cleaning would neutralize, and the joined text is bounded.
+const boundMessages = (text) => (contextText ? contextText.capText(text, contextText.HOOK_OUTPUT_MAX_CHARS) : text);
+
 async function main() {
   const sessionStartDeadline = Date.now() + SESSION_START_HOOK_TIMEOUT_MS;
   try {
+    contextText = await loadContextText();
     const input = await readStdin();
     let data = {};
     try { data = JSON.parse(input); } catch {}
@@ -1535,11 +1596,13 @@ async function main() {
         'state',
         'jev',
       ));
-      if (compaction.context || compaction.systemMessage) {
+      const guardMessage = await jevDeliveryGuardAtSessionStart(data);
+      const noWorkspaceMessage = boundMessages(cleanBlock([compaction.systemMessage, guardMessage].filter(Boolean).join('\n')));
+      if (compaction.context || noWorkspaceMessage) {
         console.log(JSON.stringify({
           continue: true,
-          ...(compaction.systemMessage ? { systemMessage: compaction.systemMessage } : {}),
-          ...(compaction.context ? { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: compaction.context } } : {}),
+          ...(noWorkspaceMessage ? { systemMessage: noWorkspaceMessage } : {}),
+          ...(compaction.context ? { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: cleanBlock(compaction.context) } } : {}),
         }));
         return;
       }
@@ -1563,10 +1626,10 @@ async function main() {
         const { preparePreCompactCheckpointRestore, claimPreCompactCheckpointRestore } = await import(
           pathToFileURL(join(__dirname, 'lib', 'precompact-restore.mjs')).href
         );
-        const prepared = preparePreCompactCheckpointRestore(omcRoot, sessionId);
+        const prepared = preparePreCompactCheckpointRestore(omcRoot, sessionId, contextText ?? undefined);
         if (prepared) {
           pendingRestore = { ...prepared, preparePreCompactCheckpointRestore, claimPreCompactCheckpointRestore };
-          pendingRestoreMessage = `<session-restore>\n\n${prepared.text}\n\n</session-restore>\n\n---\n`;
+          pendingRestoreMessage = `<session-restore>\n\n${cleanBlock(prepared.text)}\n\n</session-restore>\n\n---\n`;
           messages.push(pendingRestoreMessage);
         }
       } catch {
@@ -1577,8 +1640,10 @@ async function main() {
     // Jev compaction (opt-in point `compaction`): move the hooks module's records to
     // compaction.jsonl; after a compaction that used the built-in summary, add the work-state registry.
     const compaction = await jevCompactionAfterSessionStart(data, () => join(omcRoot, 'state', 'jev'));
-    if (compaction.context) messages.push(`<session-restore>\n\n${compaction.context}\n\n</session-restore>\n\n---\n`);
-    if (compaction.systemMessage) userMessages.push(compaction.systemMessage);
+    if (compaction.context) messages.push(`<session-restore>\n\n${cleanBlock(compaction.context)}\n\n</session-restore>\n\n---\n`);
+    if (compaction.systemMessage) userMessages.push(cleanBlock(compaction.systemMessage));
+    const guardMessage = await jevDeliveryGuardAtSessionStart(data);
+    if (guardMessage) userMessages.push(cleanBlock(guardMessage));
 
     // Fire sibling-retrofit warning once per session (lifted off getOmcRoot hot path)
     try {
@@ -1619,12 +1684,12 @@ async function main() {
         ? `\nRun '/plugin marketplace update omc && /omc-setup' to sync plugin-managed components.`
         : `\nRun 'omc update' to sync all components.`;
 
-      messages.push(`<session-restore>\n\n${driftMsg}\n\n</session-restore>\n\n---\n`);
+      messages.push(`<session-restore>\n\n${cleanBlock(driftMsg)}\n\n</session-restore>\n\n---\n`);
     }
 
     // Check npm registry for available updates (with 24h cache)
     const updateNotice = await runUpdateChecks();
-    if (updateNotice) userMessages.push(updateNotice);
+    if (updateNotice) userMessages.push(cleanBlock(updateNotice));
 
     // Warn if silentAutoUpdate is enabled but running in plugin mode (#1773)
     if (process.env.CLAUDE_PLUGIN_ROOT) {
@@ -1672,8 +1737,8 @@ async function main() {
 [RALPH LOOP RESTORED]
 
 You have an active ralph-loop session.
-Original task: ${ralphState.prompt || 'Task in progress'}
-Iteration: ${ralphState.iteration || 1}/${ralphState.max_iterations || 10}
+Original task: ${cleanHost(ralphState.prompt || 'Task in progress', 500)}
+Iteration: ${cleanHost(ralphState.iteration || 1, 20)}/${cleanHost(ralphState.max_iterations || 10, 20)}
 
 Treat this as prior-session context only. Prioritize the user's newest request, and resume the ralph loop only if the user explicitly asks to continue it.
 
@@ -1726,7 +1791,7 @@ Treat this as prior-session context only. Prioritize the user's newest request, 
 
 [PROJECT MEMORY]
 
-${summary}
+${cleanBlock(summary)}
 
 </project-memory-context>
 
@@ -1743,7 +1808,9 @@ ${summary}
     if (existsSync(notepadPath)) {
       try {
         const notepadContent = readFileSync(notepadPath, 'utf-8');
-        const priorityMatch = notepadContent.match(/## Priority Context\n([\s\S]*?)(?=## |$)/);
+        // The section ends at the next line that starts with `## `: `###`
+        // subheadings and `##` inside a line are part of the Priority Context.
+        const priorityMatch = notepadContent.match(/## Priority Context\n([\s\S]*?)(?=^## [^#]|(?![\s\S]))/m);
         if (priorityMatch && priorityMatch[1].trim()) {
           const priorityContext = priorityMatch[1].trim();
           // Only inject if there's actual content (not just the placeholder comment)
@@ -1751,7 +1818,7 @@ ${summary}
           if (cleanContent) {
             messages.push(`<notepad-context>
 [NOTEPAD - Priority Context]
-${cleanContent}
+${cleanBlock(cleanContent)}
 </notepad-context>`);
           }
         }
@@ -1938,9 +2005,9 @@ ${cleanContent}
           }
           if (status !== 'contended') break;
           Atomics.wait(waitCell, 0, 0, 10);
-          const refreshed = pendingRestore.preparePreCompactCheckpointRestore(omcRoot, sessionId);
+          const refreshed = pendingRestore.preparePreCompactCheckpointRestore(omcRoot, sessionId, contextText ?? undefined);
           if (!refreshed) break;
-          const refreshedMessage = `<session-restore>\n\n${refreshed.text}\n\n</session-restore>\n\n---\n`;
+          const refreshedMessage = `<session-restore>\n\n${cleanBlock(refreshed.text)}\n\n</session-restore>\n\n---\n`;
           const refreshedMessages = messages.map((message) => (
             message === pendingRestoreMessage ? refreshedMessage : message
           ));
@@ -1974,7 +2041,7 @@ ${cleanContent}
         continue: true,
       };
       if (userMessages.length > 0) {
-        output.systemMessage = userMessages.join('\n');
+        output.systemMessage = boundMessages(userMessages.join('\n'));
       }
       if (messages.length > 0) {
         output.hookSpecificOutput = {
